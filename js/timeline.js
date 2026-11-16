@@ -1,0 +1,161 @@
+/**
+ * VideoForge Pro - Multi-Track Interactive Timeline & Trimming Engine
+ */
+
+export const Timeline = {
+  duration: 0,
+  currentTime: 0,
+  trimIn: 0,
+  trimOut: 0,
+  isLooping: false,
+  zoomScale: 1.0, // 1.0 = Fit, 2.0 = 2x, etc.
+
+  // Clips in sequence
+  clips: [],
+  activeClipIndex: 0,
+
+  // UI Elements cache
+  trackContainer: null,
+  playheadEl: null,
+  trimInEl: null,
+  trimOutEl: null,
+  timeDisplayEl: null,
+
+  init(container, onSeekCallback) {
+    this.trackContainer = container;
+    this.onSeek = onSeekCallback;
+    this.setupEventListeners();
+  },
+
+  setDuration(dur) {
+    this.duration = dur || 0;
+    this.trimIn = 0;
+    this.trimOut = this.duration;
+    this.clips = [{
+      id: 'clip_0',
+      start: 0,
+      end: this.duration,
+      in: 0,
+      out: this.duration,
+      name: 'Main Video Track'
+    }];
+    this.updateUI();
+  },
+
+  setTime(t) {
+    this.currentTime = Math.max(0, Math.min(t, this.duration));
+    
+    // Check A-B loop boundary
+    if (this.isLooping && this.currentTime >= this.trimOut) {
+      this.currentTime = this.trimIn;
+      if (this.onSeek) this.onSeek(this.trimIn);
+    }
+
+    this.updatePlayheadPosition();
+  },
+
+  updatePlayheadPosition() {
+    if (!this.playheadEl || !this.duration) return;
+    const pct = (this.currentTime / this.duration) * 100;
+    this.playheadEl.style.left = `${Math.min(100, Math.max(0, pct))}%`;
+  },
+
+  updateUI() {
+    if (!this.trimInEl || !this.trimOutEl || !this.duration) return;
+    const inPct = (this.trimIn / this.duration) * 100;
+    const outPct = ((this.duration - this.trimOut) / this.duration) * 100;
+
+    this.trimInEl.style.left = `${inPct}%`;
+    this.trimOutEl.style.right = `${outPct}%`;
+    this.updatePlayheadPosition();
+  },
+
+  seekByRatio(ratio) {
+    if (!this.duration) return;
+    const targetTime = Math.max(0, Math.min(ratio * this.duration, this.duration));
+    this.setTime(targetTime);
+    if (this.onSeek) this.onSeek(targetTime);
+  },
+
+  stepFrame(deltaSeconds = 0.05) {
+    const target = Math.max(0, Math.min(this.currentTime + deltaSeconds, this.duration));
+    this.setTime(target);
+    if (this.onSeek) this.onSeek(target);
+  },
+
+  splitAtPlayhead() {
+    if (!this.duration || this.currentTime <= 0.1 || this.currentTime >= this.duration - 0.1) return false;
+    
+    // Add split marker into clips
+    this.clips.push({
+      id: `clip_${Date.now()}`,
+      start: this.currentTime,
+      end: this.trimOut,
+      in: this.currentTime,
+      out: this.trimOut,
+      name: `Clip Segment ${this.clips.length + 1}`
+    });
+    return true;
+  },
+
+  setTrimInCurrent() {
+    this.trimIn = Math.min(this.currentTime, this.trimOut - 0.2);
+    this.updateUI();
+  },
+
+  setTrimOutCurrent() {
+    this.trimOut = Math.max(this.currentTime, this.trimIn + 0.2);
+    this.updateUI();
+  },
+
+  resetTrim() {
+    this.trimIn = 0;
+    this.trimOut = this.duration;
+    this.updateUI();
+  },
+
+  toggleLoop() {
+    this.isLooping = !this.isLooping;
+    return this.isLooping;
+  },
+
+  zoom(factor) {
+    this.zoomScale = Math.max(1.0, Math.min(4.0, this.zoomScale * factor));
+    if (this.trackContainer) {
+      this.trackContainer.style.width = `${this.zoomScale * 100}%`;
+    }
+  },
+
+  formatTimecode(seconds) {
+    if (isNaN(seconds) || seconds < 0) seconds = 0;
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    const ms = Math.floor((seconds % 1) * 100);
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${String(ms).padStart(2, '0')}`;
+  },
+
+  setupEventListeners() {
+    if (!this.trackContainer) return;
+
+    let isDraggingPlayhead = false;
+
+    this.trackContainer.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.trim-handle')) return;
+      isDraggingPlayhead = true;
+      const rect = this.trackContainer.getBoundingClientRect();
+      const ratio = (e.clientX - rect.left) / rect.width;
+      this.seekByRatio(ratio);
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDraggingPlayhead || !this.trackContainer) return;
+      const rect = this.trackContainer.getBoundingClientRect();
+      const ratio = (e.clientX - rect.left) / rect.width;
+      this.seekByRatio(ratio);
+    });
+
+    window.addEventListener('mouseup', () => {
+      isDraggingPlayhead = false;
+    });
+  }
+};

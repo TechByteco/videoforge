@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VideoForge Pro — All-in-One Browser Video Studio</title>
+  
+  <!-- Modern Typography Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Instrument+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  
+  <!-- Main Stylesheet -->
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+  <!-- TOP NAVIGATION -->
+  <nav>
+    <div class="logo-group">
+      <div class="logo">
+        <div class="logo-dot"></div>
+        Video<em>Forge</em> <span style="font-size:12px;color:var(--txt-dim);font-weight:600;margin-left:4px">PRO</span>
+      </div>
+      <div class="badge">STUDIO v2.0</div>
+    </div>
+
+    <!-- Center Navigation Tabs -->
+    <div class="ntabs">
+      <button class="nt on" onclick="switchInspectorTab('edit')">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h18"/></svg>
+        Editor
+      </button>
+      <button class="nt" onclick="switchInspectorTab('color')">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a7 7 0 0 0 0 14 7 7 0 0 0 0-14z"/></svg>
+        Color &amp; FX
+      </button>
+      <button class="nt" onclick="switchInspectorTab('audio')">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        Audio EQ
+      </button>
+      <button class="nt" onclick="switchInspectorTab('subs')">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h3M12 15h5M7 11h5M15 11h2"/></svg>
+        Subtitles
+      </button>
+      <button class="nt" onclick="switchInspectorTab('compress')">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+        Compress
+      </button>
+    </div>
+
+    <!-- Right Quick Actions -->
+    <div class="nav-tools">
+      <button class="btn-icon" title="Undo (Ctrl+Z)" onclick="App.undo()">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+      </button>
+      <button class="btn-icon" title="Redo (Ctrl+Y)" onclick="App.redo()">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 01-2.13 9.36L23 10"/></svg>
+      </button>
+      <button class="btn-icon" title="Save Project (.videoforge JSON)" onclick="App.exportProjectJSON()">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      </button>
+      <button class="btn-icon" title="Load Project (.videoforge JSON)" onclick="document.getElementById('projectFileInput').click()">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+      </button>
+      <button class="btn-icon" title="Keyboard Shortcuts" onclick="document.getElementById('modalShortcuts').classList.add('open')">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="6" y1="8" x2="6" y2="8"/><line x1="10" y1="8" x2="10" y2="8"/><line x1="14" y1="8" x2="14" y2="8"/><line x1="18" y1="8" x2="18" y2="8"/><line x1="8" y1="16" x2="16" y2="16"/></svg>
+      </button>
+      <button class="tbb pri" onclick="App.openExportModal()">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        Export Video
+      </button>
+    </div>
+  </nav>
+
+  <!-- APPLICATION CONTAINER -->
+  <div class="app-container">
+    <div class="app-main-grid">
+
+      <!-- LEFT TOOLBAR / DOCK -->
+      <aside class="sidebar">
+        <button class="sbt on" onclick="document.getElementById('fileInput').click()" title="Import Video/Audio/Image">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+          <span>Upload</span>
+        </button>
+        <button class="sbt" onclick="App.loadSampleDemo()" title="Load Sample Demo Track">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span>Demo</span>
+        </button>
+        <button class="sbt" onclick="Player.startScreenCapture()" title="Screen Recorder">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          <span>Screen</span>
+        </button>
+        <button class="sbt" onclick="Player.startWebcamCapture()" title="Webcam Live Recorder">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"/><circle cx="12" cy="10" r="8"/><line x1="7" y1="21" x2="17" y2="21"/><line x1="12" y1="18" x2="12" y2="21"/></svg>
+          <span>Cam</span>
+        </button>
+        <div class="sdiv"></div>
+        <button class="sbt" onclick="App.splitClip()" title="Split Clip at Playhead (S)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+          <span>Split</span>
+        </button>
+        <button class="sbt" onclick="Timeline.setTrimInCurrent();App.toast('Trim In Set')" title="Set Trim In Point (I)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
+          <span>Trim-In</span>
+        </button>
+        <button class="sbt" onclick="Timeline.setTrimOutCurrent();App.toast('Trim Out Set')" title="Set Trim Out Point (O)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+          <span>Trim-Out</span>
+        </button>
+        <div class="sdiv"></div>
+        <button class="sbt" onclick="switchInspectorTab('subs')" title="AI Subtitles">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h3M12 15h5M7 11h5M15 11h2"/></svg>
+          <span>Subs</span>
+        </button>
+        <button class="sbt" onclick="switchInspectorTab('audio')" title="Audio Studio &amp; SFX">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          <span>Audio</span>
+        </button>
+        <button class="sbt" onclick="document.getElementById('watermarkInput').click()" title="Add Watermark Logo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
+          <span>Logo</span>
+        </button>
+        <button class="sbt" onclick="ExportEngine.grabFrameSnapshot(document.getElementById('mainCanvas'), 'png')" title="Capture 4K Frame Snapshot">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          <span>Shot</span>
+        </button>
+      </aside>
+
+      <!-- CENTER WORKSPACE -->
+      <main class="workspace">
+
+        <!-- PLAYBACK TOOLBAR -->
+        <div class="toolbar">
+          <button class="tbb" id="btnPlay">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><polygon points="5,3 19,12 5,21"/></svg> Play
+          </button>
+          <button class="tbb" onclick="Player.seek(0)" title="Rewind to start">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="11 19 2 12 11 5"/><polyline points="22 19 13 12 22 5"/></svg>
+          </button>
+          <button class="tbb" onclick="Timeline.stepFrame(-0.05)" title="Step 1 Frame Back (Shift+Left)">-1 Frame</button>
+          <button class="tbb" onclick="Timeline.stepFrame(0.05)" title="Step 1 Frame Forward (Shift+Right)">+1 Frame</button>
+          <div class="tsep"></div>
+          
+          <!-- Exact Timecode Indicator -->
+          <div class="time-display">
+            <span id="timeCur">00:00.00</span>
+            <span class="dur">/</span>
+            <span id="timeDur" class="dur">00:00.00</span>
+          </div>
+
+          <div class="tsep"></div>
+          <button class="tbb" onclick="Timeline.toggleLoop() ? this.classList.add('active') : this.classList.remove('active')" title="Loop A-B Segment">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+            Loop
+          </button>
+          <button class="tbb" id="btnMute">Mute</button>
+          <button class="tbb" onclick="App.toggleFullscreen()" title="Fullscreen Stage (F)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+          </button>
+          
+          <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+            <button class="tbb accent-blue" onclick="AudioStudio.extractAudioWAV(document.getElementById('sourceVideo'))" title="Rip Audio as WAV">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+              Extract WAV
+            </button>
+            <button class="tbb pri" onclick="App.openExportModal()">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+              Export
+            </button>
+          </div>
+        </div>
+
+        <!-- STAGE VIEWPORT (CANVAS COMPOSITOR) -->
+        <div class="viewport-container">
+          <div class="grid-bg"></div>
+
+          <!-- Upload Drop Zone Card -->
+          <div class="upload-card" id="upCard">
+            <div class="up-icon-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+            </div>
+            <div>
+              <div class="up-title">Drop Media to Edit</div>
+              <div class="up-desc">Upload any video, audio, or image. All processing happens 100% locally in your browser.</div>
+            </div>
+            <div class="format-tags">
+              <span class="fmt">MP4</span><span class="fmt">WEBM</span><span class="fmt">MOV</span>
+              <span class="fmt">MP3</span><span class="fmt">WAV</span><span class="fmt">PNG</span><span class="fmt">JPG</span><span class="fmt">GIF</span>
+            </div>
+            <div class="upload-actions">
+              <label class="btn-upload" for="fileInput">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                Choose Local File
+              </label>
+              <button class="btn-secondary" onclick="App.loadSampleDemo()">
+                ⚡ Load Sample Demo
+              </button>
+            </div>
+          </div>
+
+          <!-- Video Stage (Rendered Frame Canvas) -->
+          <div class="stage-container" id="stageContainer">
+            <canvas id="mainCanvas"></canvas>
+            <video id="sourceVideo" playsinline webkit-playsinline></video>
+            
+            <!-- Subtitle Burn-in / Soft Preview Overlay -->
+            <div class="subtitle-badge" id="subOvBadge" style="display:none">
+              <div class="subtitle-text" id="subOvText"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TIMELINE DOCK (BOTTOM) -->
+        <div class="timeline-dock">
+          <div class="timeline-header">
+            <div class="timeline-controls">
+              <span class="timeline-scale-label">TIMELINE TRACKS</span>
+              <button class="tbb" style="padding:2px 8px;font-size:10px" onclick="Timeline.zoom(1.2)">+ Zoom</button>
+              <button class="tbb" style="padding:2px 8px;font-size:10px" onclick="Timeline.zoom(0.8)">- Zoom</button>
+              <button class="tbb" style="padding:2px 8px;font-size:10px" onclick="Timeline.resetTrim()">Reset Trim</button>
+            </div>
+            <div class="timeline-scale-label">Drag playhead to scrub · Press S to split</div>
+          </div>
+
+          <!-- Time Ruler -->
+          <div class="timeline-ruler">
+            <span class="ruler-tick">00:00</span>
+            <span class="ruler-tick">00:15</span>
+            <span class="ruler-tick">00:30</span>
+            <span class="ruler-tick">00:45</span>
+            <span class="ruler-tick">01:00</span>
+          </div>
+
+          <!-- Multi-Track Container -->
+          <div class="tracks-container" id="timelineTracks">
+            <!-- Playhead cursor line -->
+            <div class="playhead-cursor" id="playheadEl">
+              <div class="playhead-head"></div>
+            </div>
+
+            <!-- In/Out Trim Handles -->
+            <div class="trim-handle trim-in" id="trimInEl"></div>
+            <div class="trim-handle trim-out" id="trimOutEl"></div>
+
+            <!-- Track 1: Video (V1) -->
+            <div class="track-lane track-video">
+              <span class="track-lane-label">V1 VIDEO</span>
+              <div class="track-clip-block">
+                <span class="clip-title">Master Video Stream</span>
+              </div>
+            </div>
+
+            <!-- Track 2: Audio (A1) -->
+            <div class="track-lane track-audio">
+              <span class="track-lane-label">A1 AUDIO</span>
+              <div class="track-clip-block" style="background:rgba(71,255,184,0.15);border-color:rgba(71,255,184,0.3)">
+                <span class="clip-title" style="color:var(--ok)">Main Audio Track (3-Band EQ)</span>
+              </div>
+            </div>
+
+            <!-- Track 3: Subtitles (T1) -->
+            <div class="track-lane track-subtitles">
+              <span class="track-lane-label">T1 SUBS</span>
+              <div class="track-clip-block" style="background:rgba(232,255,71,0.15);border-color:rgba(232,255,71,0.3)">
+                <span class="clip-title" style="color:var(--acc)">AI Subtitles &amp; Captions</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </main>
+
+      <!-- RIGHT PROPERTIES & INSPECTOR PANEL -->
+      <aside class="inspector-panel">
+        <div class="inspector-header">
+          <div class="inspector-title">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span id="inspectorTabTitle">Properties</span>
+          </div>
+          <div class="audio-spectrum-mini" title="Live Audio Output Spectrum">
+            <div class="spectrum-bar active"></div>
+            <div class="spectrum-bar active"></div>
+            <div class="spectrum-bar active"></div>
+            <div class="spectrum-bar active"></div>
+            <div class="spectrum-bar active"></div>
+          </div>
+        </div>
+
+        <div class="inspector-body">
+
+          <!-- 1. ASPECT RATIO & FRAMING -->
+          <div class="inspector-section">
+            <div class="section-head">
+              <span class="section-title">Canvas Aspect Ratio</span>
+            </div>
+            <div class="section-body">
+              <div class="ratio-grid">
+                <button class="btn-ratio active" onclick="setRatio('16:9', this)">16:9</button>
+                <button class="btn-ratio" onclick="setRatio('9:16', this)">9:16</button>
+                <button class="btn-ratio" onclick="setRatio('1:1', this)">1:1</button>
+                <button class="btn-ratio" onclick="setRatio('4:5', this)">4:5</button>
+                <button class="btn-ratio" onclick="setRatio('21:9', this)">21:9</button>
+              </div>
+              <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-dim);cursor:pointer;margin-top:2px">
+                <input type="checkbox" checked onchange="FilterEngine.blurBackground = this.checked">
+                Smart Background Blur Fill
+              </label>
+            </div>
+          </div>
+
+          <!-- 2. COLOR GRADING ADJUSTMENTS -->
+          <div class="inspector-section">
+            <div class="section-head">
+              <span class="section-title">Color Grading</span>
+            </div>
+            <div class="section-body">
+              <div class="control-row">
+                <div class="control-label"><span>Brightness</span><span class="val">0</span></div>
+                <div class="range-wrap"><input type="range" id="rb" min="-100" max="100" value="0"></div>
+              </div>
+              <div class="control-row">
+                <div class="control-label"><span>Contrast</span><span class="val">0</span></div>
+                <div class="range-wrap"><input type="range" id="rc" min="-100" max="100" value="0"></div>
+              </div>
+              <div class="control-row">
+                <div class="control-label"><span>Saturation</span><span class="val">0</span></div>
+                <div class="range-wrap"><input type="range" id="rs" min="-100" max="100" value="0"></div>
+              </div>
+              <div class="control-row">
+                <div class="control-label"><span>Exposure</span><span class="val">0</span></div>
+                <div class="range-wrap"><input type="range" id="re" min="-100" max="100" value="0"></div>
+              </div>
+              <div class="control-row">
+                <div class="control-label"><span>Warmth / Balance</span><span class="val">0</span></div>
+                <div class="range-wrap"><input type="range" id="rw" min="-100" max="100" value="0"></div>
+              </div>
+              <div class="control-row">
+                <div class="control-label"><span>Hue Rotation</span><span class="val">0</span></div>
+                <div class="range-wrap"><input type="range" id="rh" min="0" max="360" value="0"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. CINEMATIC LUTS -->
+          <div class="inspector-section">
+            <div class="section-head">
+              <span class="section-title">Cinematic LUT Presets</span>
+            </div>
+            <div class="section-body">
+              <div class="preset-grid">
+                <button class="btn-preset active" onclick="setLUT('none', this)">None</button>
+                <button class="btn-preset" onclick="setLUT('cyberpunk', this)">Cyberpunk</button>
+                <button class="btn-preset" onclick="setLUT('teal-orange', this)">Teal/Orange</button>
+                <button class="btn-preset" onclick="setLUT('golden-hour', this)">Golden Hour</button>
+                <button class="btn-preset" onclick="setLUT('moody-noir', this)">Moody Noir</button>
+                <button class="btn-preset" onclick="setLUT('retro-70s', this)">Retro 70s</button>
+                <button class="btn-preset" onclick="setLUT('matrix', this)">Matrix Green</button>
+                <button class="btn-preset" onclick="setLUT('pastel', this)">Soft Pastel</button>
+                <button class="btn-preset" onclick="setLUT('dramatic', this)">Dramatic</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. SPECIAL EFFECTS (Vignette, Bars, Glitch) -->
+          <div class="inspector-section">
+            <div class="section-head">
+              <span class="section-title">VFX &amp; Shaders</span>
+            </div>
+            <div class="section-body">
+              <div class="control-row">
+                <div class="control-label"><span>Vignette Edge Falloff</span><span class="val">0</span></div>
+                <div class="range-wrap"><input type="range" min="0" max="100" value="0" oninput="FilterEngine.vignette=this.value"></div>
+              </div>
+              <div class="control-row">
+                <div class="control-label"><span>Cinematic 2.39:1 Bars</span><span class="val">0</span></div>
+                <div class="range-wrap"><input type="range" min="0" max="100" value="0" oninput="FilterEngine.letterbox=this.value"></div>
+              </div>
+              <div class="control-row">
+                <div class="control-label"><span>Film Grain &amp; Dust</span><span class="val">0</span></div>
+                <div class="range-wrap"><input type="range" min="0" max="100" value="0" oninput="FilterEngine.filmGrain=this.value"></div>
+              </div>
+              <div style="display:flex;gap:10px;margin-top:2px">
+                <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-dim);cursor:pointer">
+                  <input type="checkbox" onchange="FilterEngine.vhsGlitch=this.checked"> VHS Glitch
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-dim);cursor:pointer">
+                  <input type="checkbox" onchange="FilterEngine.scanlines=this.checked"> CRT Scanlines
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5. CHROMA KEY (GREEN SCREEN) -->
+          <div class="inspector-section">
+            <div class="section-head">
+              <span class="section-title">Chroma Key (Green Screen)</span>
+            </div>
+            <div class="section-body">
+              <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-dim);cursor:pointer">
+                <input type="checkbox" onchange="FilterEngine.chromaKeyEnabled=this.checked">
+                Enable Color Key Removal
+              </label>
+              <div class="control-row">
+                <div class="control-label"><span>Target Key Color</span></div>
+                <input type="color" value="#00ff00" onchange="FilterEngine.chromaColor=this.value">
+              </div>
+              <div class="control-row">
+                <div class="control-label"><span>Color Tolerance</span></div>
+                <input type="range" min="0.05" max="0.8" step="0.02" value="0.35" oninput="FilterEngine.chromaTolerance=parseFloat(this.value)">
+              </div>
+            </div>
+          </div>
+
+          <!-- 6. TRANSFORM & SCALE -->
+          <div class="inspector-section">
+            <div class="section-head">
+              <span class="section-title">Transform &amp; Scale</span>
+            </div>
+            <div class="section-body">
+              <div class="preset-grid" style="grid-template-columns:repeat(4,1fr)">
+                <button class="btn-preset" onclick="FilterEngine.rotation = (FilterEngine.rotation + 90) % 360">Rotate 90°</button>
+                <button class="btn-preset" onclick="FilterEngine.flipH = !FilterEngine.flipH">Flip H</button>
+                <button class="btn-preset" onclick="FilterEngine.flipV = !FilterEngine.flipV">Flip V</button>
+                <button class="btn-preset" onclick="FilterEngine.rotation=0;FilterEngine.flipH=false;FilterEngine.flipV=false">Reset</button>
+              </div>
+              <div class="control-row">
+                <div class="control-label"><span>Zoom Scale</span></div>
+                <div class="range-wrap"><input type="range" id="sliderZoom" min="1.0" max="3.0" step="0.1" value="1.0"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 7. AUDIO EQUALIZER (3-BAND) & SOUND DESIGN -->
+          <div class="inspector-section">
+            <div class="section-head">
+              <span class="section-title">Audio Studio &amp; 3-Band EQ</span>
+            </div>
+            <div class="section-body">
+              <div class="control-row">
+                <div class="control-label"><span>Master Gain Booster</span><span class="val">100%</span></div>
+                <div class="range-wrap"><input type="range" min="0" max="300" value="100" oninput="Player.setVolume(this.value);this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value+'%'"></div>
+              </div>
+              <div class="control-row">
+                <div class="control-label"><span>Bass Boost (150Hz)</span><span class="val">0 dB</span></div>
+                <div class="range-wrap"><input type="range" min="-20" max="20" value="0" oninput="AudioStudio.bass=this.value;AudioStudio.setEQ(AudioStudio.bass,AudioStudio.mid,AudioStudio.treble);this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value+' dB'"></div>
+              </div>
+              <div class="control-row">
+                <div class="control-label"><span>Mid Vocals (1kHz)</span><span class="val">0 dB</span></div>
+                <div class="range-wrap"><input type="range" min="-20" max="20" value="0" oninput="AudioStudio.mid=this.value;AudioStudio.setEQ(AudioStudio.bass,AudioStudio.mid,AudioStudio.treble);this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value+' dB'"></div>
+              </div>
+              <div class="control-row">
+                <div class="control-label"><span>Treble Sparkle (4kHz)</span><span class="val">0 dB</span></div>
+                <div class="range-wrap"><input type="range" min="-20" max="20" value="0" oninput="AudioStudio.treble=this.value;AudioStudio.setEQ(AudioStudio.bass,AudioStudio.mid,AudioStudio.treble);this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value+' dB'"></div>
+              </div>
+              
+              <!-- SFX Synthesizer Pads -->
+              <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--txt-dim);margin-top:4px">ROYALTY-FREE SFX SYNTH</div>
+              <div class="preset-grid">
+                <button class="btn-preset" onclick="AudioStudio.playSynthesizedSFX('whoosh')">💨 Whoosh</button>
+                <button class="btn-preset" onclick="AudioStudio.playSynthesizedSFX('ding')">🔔 Bell Ding</button>
+                <button class="btn-preset" onclick="AudioStudio.playSynthesizedSFX('cyber-pulse')">⚡ Cyber Beat</button>
+                <button class="btn-preset" onclick="AudioStudio.playSynthesizedSFX('lofi-chord')">🎹 LoFi Chord</button>
+                <button class="btn-preset" onclick="AudioStudio.setAudioEffect('reverb')">Room Reverb</button>
+                <button class="btn-preset" onclick="AudioStudio.setAudioEffect('radio')">Walkie Radio</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 8. SUBTITLES & AI TRANSCRIPTION -->
+          <div class="inspector-section">
+            <div class="section-head">
+              <span class="section-title">Subtitles &amp; Captions</span>
+            </div>
+            <div class="section-body">
+              <button class="btn-secondary" style="width:100%" onclick="startLiveAI()">
+                🤖 Live AI Speech Transcribe
+              </button>
+              <div style="display:flex;gap:6px">
+                <button class="btn-preset" style="flex:1" onclick="SubtitlesManager.exportSRT()">Export .SRT</button>
+                <button class="btn-preset" style="flex:1" onclick="SubtitlesManager.exportVTT()">Export .VTT</button>
+                <button class="btn-preset" style="flex:1" onclick="document.getElementById('subtitleFileInput').click()">Import .SRT</button>
+              </div>
+              <div class="sub-items-list" id="subtitlesList"></div>
+            </div>
+          </div>
+
+          <!-- 9. TEXT & STICKER OVERLAYS -->
+          <div class="inspector-section">
+            <div class="section-head">
+              <span class="section-title">Text Titles &amp; Stickers</span>
+            </div>
+            <div class="section-body">
+              <input type="text" id="newTextOverlayInput" placeholder="Enter title or lower-third..." value="Breaking Highlights">
+              <button class="btn-preset" onclick="addCustomText()">Add Text Overlay</button>
+              
+              <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--txt-dim);margin-top:4px">QUICK STICKERS</div>
+              <div class="preset-grid" style="grid-template-columns:repeat(4,1fr)">
+                <button class="btn-preset" onclick="Player.addSticker('🔥', 0.5, 0.25)">🔥 Fire</button>
+                <button class="btn-preset" onclick="Player.addSticker('🔴 REC', 0.15, 0.12)">🔴 REC</button>
+                <button class="btn-preset" onclick="Player.addSticker('⭐ 4K', 0.85, 0.12)">⭐ 4K</button>
+                <button class="btn-preset" onclick="Player.addSticker('⚡ NEW', 0.5, 0.8)">⚡ NEW</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </aside>
+
+    </div>
+  </div>
+
+  <!-- HIDDEN FILE INPUTS FOR ACTIONS -->
+  <input type="file" id="fileInput" accept="video/*,audio/*,image/*">
+  <input type="file" id="watermarkInput" accept="image/*">
+  <input type="file" id="subtitleFileInput" accept=".srt,.vtt,text/plain">
+  <input type="file" id="projectFileInput" accept=".videoforge,application/json">
+
+  <!-- EXPORT PROGRESS MODAL -->
+  <div class="modal-backdrop" id="modalExport">
+    <div class="modal-box">
+      <div class="modal-icon-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+      </div>
+      <div class="modal-title" id="exportStatusText">Export Video</div>
+      <div class="modal-sub" id="exportStepSub">Configure your render options</div>
+
+      <div class="control-row">
+        <div class="control-label"><span>Resolution</span></div>
+        <select id="exportResolutionSelect">
+          <option value="4k">4K Ultra HD (3840×2160)</option>
+          <option value="1080p" selected>1080p Full HD (1920×1080)</option>
+          <option value="720p">720p HD (1280×720)</option>
+          <option value="480p">480p Social (854×480)</option>
+        </select>
+      </div>
+
+      <div class="control-row">
+        <div class="control-label"><span>Encoding Bitrate</span></div>
+        <select id="exportBitrateSelect">
+          <option value="20000000">20 Mbps (Maximum Quality)</option>
+          <option value="12000000" selected>12 Mbps (High Quality)</option>
+          <option value="6000000">6 Mbps (Balanced)</option>
+          <option value="2500000">2.5 Mbps (Compressed / Mobile)</option>
+        </select>
+      </div>
+
+      <div class="progress-track">
+        <div class="progress-bar" id="exportProgressFill"></div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:6px">
+        <button class="btn-upload" style="flex:1" onclick="App.startVideoExport()">
+          🚀 Render &amp; Encode Now
+        </button>
+        <button class="btn-secondary" id="btnDownloadExport" style="display:none;flex:1;background:var(--ok);color:#000;font-weight:700">
+          ⬇️ Download Render
+        </button>
+      </div>
+      <button class="btn-secondary" style="align-self:center;margin-top:4px" onclick="App.closeModal('modalExport')">
+        Close
+      </button>
+    </div>
+  </div>
+
+  <!-- KEYBOARD SHORTCUTS CHEATSHEET MODAL -->
+  <div class="modal-backdrop" id="modalShortcuts">
+    <div class="modal-box">
+      <div class="modal-title">Keyboard Shortcuts</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin:10px 0">
+        <div><strong style="color:var(--acc)">Space:</strong> Play / Pause</div>
+        <div><strong style="color:var(--acc)">J / K / L:</strong> Rewind / Pause / Fast</div>
+        <div><strong style="color:var(--acc)">Left / Right:</strong> Seek 1s</div>
+        <div><strong style="color:var(--acc)">Shift + Arrows:</strong> Frame Step (0.05s)</div>
+        <div><strong style="color:var(--acc)">S:</strong> Split Clip at Playhead</div>
+        <div><strong style="color:var(--acc)">I / O:</strong> Set Trim In / Trim Out</div>
+        <div><strong style="color:var(--acc)">M:</strong> Toggle Audio Mute</div>
+        <div><strong style="color:var(--acc)">F:</strong> Fullscreen Toggle</div>
+        <div><strong style="color:var(--acc)">E:</strong> Export Project</div>
+        <div><strong style="color:var(--acc)">Ctrl + Z / Y:</strong> Undo / Redo</div>
+      </div>
+      <button class="btn-secondary" style="align-self:center" onclick="App.closeModal('modalShortcuts')">Close</button>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div class="toast" id="toastEl">
+    <div class="toast-dot"></div>
+    <span id="toastMsg">Ready</span>
+  </div>
+
+  <!-- UI HELPER SCRIPT -->
+  <script type="module" src="js/app.js"></script>
+  <script>
+    function switchInspectorTab(name) {
+      document.querySelectorAll('.nt').forEach(t => t.classList.remove('on'));
+      if (event && event.target) {
+        event.target.closest('.nt').classList.add('on');
+      }
+      const title = document.getElementById('inspectorTabTitle');
+      if (name === 'color') title.textContent = 'Color Grading & VFX';
+      else if (name === 'audio') title.textContent = 'Audio Studio';
+      else if (name === 'subs') title.textContent = 'AI Subtitles';
+      else if (name === 'compress') title.textContent = 'Compress & Format';
+      else title.textContent = 'Properties';
+    }
+
+    function setRatio(ratio, el) {
+      document.querySelectorAll('.btn-ratio').forEach(b => b.classList.remove('active'));
+      el.classList.add('active');
+      FilterEngine.aspectRatio = ratio;
+      if (Player.video) {
+        const dims = FilterEngine.getTargetDimensions(Player.video.videoWidth, Player.video.videoHeight);
+        Player.canvas.width = dims.width;
+        Player.canvas.height = dims.height;
+      }
+      App.toast(`Aspect Ratio: ${ratio}`);
+    }
+
+    function setLUT(name, el) {
+      document.querySelectorAll('.preset-grid .btn-preset').forEach(b => b.classList.remove('active'));
+      el.classList.add('active');
+      FilterEngine.activeLUT = name;
+      App.toast(`LUT: ${name}`);
+    }
+
+    function addCustomText() {
+      const val = document.getElementById('newTextOverlayInput').value;
+      if (val) {
+        Player.addTextOverlay(val, { font: 'Syne', size: 38, weight: '800', color: '#e8ff47' });
+        App.toast('Text overlay added');
+      }
+    }
+
+    function startLiveAI() {
+      App.toast('🎙️ Listening to microphone/audio…');
+      SubtitlesManager.startLiveTranscription(
+        (chunk) => { App.renderSubtitlesList(); },
+        () => { App.toast('✅ Transcription Finished'); }
+      );
+    }
+  </script>
+</body>
+</html>
