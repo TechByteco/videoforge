@@ -1,5 +1,5 @@
 /**
- * VideoForge Pro - Multi-Track Interactive Timeline & Trimming Engine
+ * VideoForge Pro - Multi-Track Interactive Timeline, Trimming & Beatmarking Engine
  */
 
 export const Timeline = {
@@ -8,7 +8,11 @@ export const Timeline = {
   trimIn: 0,
   trimOut: 0,
   isLooping: false,
-  zoomScale: 1.0, // 1.0 = Fit, 2.0 = 2x, etc.
+  zoomScale: 1.0,
+  snapToBeat: true,
+
+  // Beat markers from AudioStudio
+  beatMarkers: [],
 
   // Clips in sequence
   clips: [],
@@ -19,10 +23,11 @@ export const Timeline = {
   playheadEl: null,
   trimInEl: null,
   trimOutEl: null,
-  timeDisplayEl: null,
+  rulerEl: null,
 
   init(container, onSeekCallback) {
     this.trackContainer = container;
+    this.rulerEl = document.querySelector('.timeline-ruler');
     this.onSeek = onSeekCallback;
     this.setupEventListeners();
   },
@@ -40,6 +45,7 @@ export const Timeline = {
       name: 'Main Video Track'
     }];
     this.updateUI();
+    this.renderBeatMarkersUI();
   },
 
   setTime(t) {
@@ -70,9 +76,41 @@ export const Timeline = {
     this.updatePlayheadPosition();
   },
 
+  setBeatMarkers(markers) {
+    this.beatMarkers = markers || [];
+    this.renderBeatMarkersUI();
+  },
+
+  renderBeatMarkersUI() {
+    if (!this.rulerEl || !this.duration) return;
+    
+    // Remove existing beat pins
+    this.rulerEl.querySelectorAll('.beat-pin').forEach(p => p.remove());
+
+    this.beatMarkers.forEach(sec => {
+      const pin = document.createElement('div');
+      pin.className = 'beat-pin';
+      pin.style.left = `${(sec / this.duration) * 100}%`;
+      pin.title = `Beat: ${sec.toFixed(2)}s`;
+      pin.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.setTime(sec);
+        if (this.onSeek) this.onSeek(sec);
+      });
+      this.rulerEl.appendChild(pin);
+    });
+  },
+
   seekByRatio(ratio) {
     if (!this.duration) return;
-    const targetTime = Math.max(0, Math.min(ratio * this.duration, this.duration));
+    let targetTime = Math.max(0, Math.min(ratio * this.duration, this.duration));
+    
+    // Snap to nearest beat marker if close (< 0.12s)
+    if (this.snapToBeat && this.beatMarkers.length) {
+      const nearest = this.beatMarkers.find(b => Math.abs(b - targetTime) < 0.15);
+      if (nearest !== undefined) targetTime = nearest;
+    }
+
     this.setTime(targetTime);
     if (this.onSeek) this.onSeek(targetTime);
   },
@@ -86,7 +124,6 @@ export const Timeline = {
   splitAtPlayhead() {
     if (!this.duration || this.currentTime <= 0.1 || this.currentTime >= this.duration - 0.1) return false;
     
-    // Add split marker into clips
     this.clips.push({
       id: `clip_${Date.now()}`,
       start: this.currentTime,

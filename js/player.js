@@ -16,14 +16,14 @@ export const Player = {
   // Media State
   isLoaded: false,
   isPlaying: false,
-  mediaType: 'video', // 'video', 'image', 'audio'
+  mediaType: 'video',
   mediaFile: null,
 
   // Overlays
   textOverlays: [
     { text: "VideoForge Pro", font: "Syne", size: 38, weight: "800", color: "#e8ff47", showBadge: true, badgeColor: "rgba(0,0,0,0.8)", y: 0.15 }
   ],
-  watermark: null, // { img, position, opacity, scale }
+  watermark: null,
   stickers: [],
 
   // Live Screen / Webcam streams
@@ -35,6 +35,7 @@ export const Player = {
     this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
     
     this.setupMediaListeners();
+    this.setupCanvasInteractions();
     this.startRenderLoop();
   },
 
@@ -48,14 +49,12 @@ export const Player = {
       Timeline.setDuration(this.video.duration);
       AudioStudio.init(this.video);
 
-      // Trigger UI update
       if (this.onMetadataLoaded) this.onMetadataLoaded(this.video.duration, this.video.videoWidth, this.video.videoHeight);
     });
 
     this.video.addEventListener('timeupdate', () => {
       Timeline.setTime(this.video.currentTime);
       
-      // Update subtitle overlay
       const activeCue = SubtitlesManager.getActiveCue(this.video.currentTime);
       if (this.onSubtitleUpdate) {
         this.onSubtitleUpdate(activeCue ? activeCue.text : null);
@@ -66,6 +65,33 @@ export const Player = {
       this.isPlaying = false;
       if (this.onPlayStateChange) this.onPlayStateChange(false);
     });
+  },
+
+  setupCanvasInteractions() {
+    // Split screen drag handler
+    let isDraggingSplit = false;
+    this.canvas.addEventListener('mousedown', (e) => {
+      if (FilterEngine.splitScreen) {
+        isDraggingSplit = true;
+        this.updateSplitPos(e);
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (isDraggingSplit && FilterEngine.splitScreen) {
+        this.updateSplitPos(e);
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      isDraggingSplit = false;
+    });
+  },
+
+  updateSplitPos(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    const pos = Math.max(0.05, Math.min(0.95, (e.clientX - rect.left) / rect.width));
+    FilterEngine.splitPosition = pos;
   },
 
   loadFromFile(file) {
@@ -80,7 +106,7 @@ export const Player = {
         this.video.src = '';
         this.canvas.width = img.width || 1280;
         this.canvas.height = img.height || 720;
-        Timeline.setDuration(10); // Default 10s duration for static image
+        Timeline.setDuration(10);
         this.isLoaded = true;
         this.staticImage = img;
       };
@@ -94,9 +120,6 @@ export const Player = {
     }
   },
 
-  /**
-   * Screen Recording direct capture
-   */
   async startScreenCapture() {
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
@@ -115,9 +138,6 @@ export const Player = {
     }
   },
 
-  /**
-   * Webcam Recording direct capture
-   */
   async startWebcamCapture() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -198,9 +218,6 @@ export const Player = {
     this.stickers.push({ emoji, x, y, size });
   },
 
-  /**
-   * Continuous high-FPS canvas render loop
-   */
   startRenderLoop() {
     const loop = () => {
       if (this.isLoaded && this.canvas && this.ctx) {
@@ -212,7 +229,9 @@ export const Player = {
           this.canvas.height,
           this.textOverlays,
           this.watermark,
-          this.stickers
+          this.stickers,
+          SubtitlesManager,
+          this.video.currentTime || 0
         );
       }
       this.animationFrameId = requestAnimationFrame(loop);

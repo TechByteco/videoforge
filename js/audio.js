@@ -1,5 +1,5 @@
 /**
- * VideoForge Pro - Web Audio API Sound Design & Visualization Suite
+ * VideoForge Pro - Web Audio API Sound Design, Noise Reduction, Beatmarking & Voice Cloning
  */
 
 export const AudioStudio = {
@@ -13,19 +13,41 @@ export const AudioStudio = {
   midFilter: null,
   trebleFilter: null,
 
-  // Effects nodes
+  // Noise Reduction DSP Nodes
+  highpassFilter: null, // Cuts low-end HVAC/wind rumble (<80Hz)
+  humNotchFilter: null, // Cuts 50/60Hz electrical hum
+  deEsserFilter: null,  // Cuts harsh sibilance (6-8kHz)
+  noiseReductionEnabled: false,
+
+  // Reverb & Effects nodes
   delayNode: null,
   feedbackGain: null,
-  distortionNode: null,
+
+  // Beatmarking & Rhythm state
+  beatMarkers: [], // Array of timestamp seconds where beats occur
+  isDetectingBeats: false,
+
+  // Voice Cloning & Speech Synthesis
+  voicePersonas: [
+    { id: 'trailer', name: '🎬 Deep Movie Trailer', pitch: 0.65, rate: 0.88, bassBoost: 14, reverb: true },
+    { id: 'podcast', name: '🎙️ Studio Host', pitch: 1.0, rate: 1.0, bassBoost: 4, reverb: false },
+    { id: 'cyber', name: '🤖 Cyberpunk AI', pitch: 1.25, rate: 1.1, bassBoost: -2, reverb: true },
+    { id: 'upbeat', name: '✨ Dynamic Storyteller', pitch: 1.15, rate: 1.05, bassBoost: 0, reverb: false },
+    { id: 'whisper', name: '🌙 Soft ASMR', pitch: 0.9, rate: 0.85, bassBoost: -4, reverb: false }
+  ],
+  activePersona: 'trailer',
+
+  // Audio Ducking
+  audioDuckingEnabled: false,
+  duckingAmount: 0.35, // 35% of normal volume during voiceover
 
   // State
-  volume: 1.0,      // 0.0 to 3.0
-  bass: 0,          // -20 to 20 dB
-  mid: 0,           // -20 to 20 dB
-  treble: 0,        // -20 to 20 dB
-  activeEffect: 'none', // 'none', 'reverb', 'radio', 'robot'
+  volume: 1.0,
+  bass: 0,
+  mid: 0,
+  treble: 0,
+  activeEffect: 'none',
 
-  // Spectrum animation
   spectrumData: null,
   isInitialized: false,
 
@@ -35,16 +57,33 @@ export const AudioStudio = {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       this.ctx = new AudioContext();
 
-      // Analyser for spectrum visualization
+      // Analyser for real-time spectrum & beat detection
       this.analyser = this.ctx.createAnalyser();
-      this.analyser.fftSize = 64;
+      this.analyser.fftSize = 128;
       this.spectrumData = new Uint8Array(this.analyser.frequencyBinCount);
 
       // Master Gain
       this.gainNode = this.ctx.createGain();
       this.gainNode.gain.value = this.volume;
 
-      // 3-Band EQ (LowShelf, Peaking, HighShelf)
+      // Noise Reduction: 80Hz Highpass Rumble Filter
+      this.highpassFilter = this.ctx.createBiquadFilter();
+      this.highpassFilter.type = 'highpass';
+      this.highpassFilter.frequency.value = 80;
+
+      // Noise Reduction: 60Hz Electrical Hum Notch Filter
+      this.humNotchFilter = this.ctx.createBiquadFilter();
+      this.humNotchFilter.type = 'notch';
+      this.humNotchFilter.frequency.value = 60;
+      this.humNotchFilter.Q.value = 10;
+
+      // Noise Reduction: De-esser (7kHz notch)
+      this.deEsserFilter = this.ctx.createBiquadFilter();
+      this.deEsserFilter.type = 'peaking';
+      this.deEsserFilter.frequency.value = 7000;
+      this.deEsserFilter.gain.value = -6;
+
+      // 3-Band EQ
       this.bassFilter = this.ctx.createBiquadFilter();
       this.bassFilter.type = 'lowshelf';
       this.bassFilter.frequency.value = 150;
@@ -61,7 +100,7 @@ export const AudioStudio = {
       this.trebleFilter.frequency.value = 4000;
       this.trebleFilter.gain.value = this.treble;
 
-      // Reverb / Echo nodes
+      // Reverb / Echo
       this.delayNode = this.ctx.createDelay();
       this.delayNode.delayTime.value = 0.25;
       this.feedbackGain = this.ctx.createGain();
@@ -69,22 +108,52 @@ export const AudioStudio = {
       this.delayNode.connect(this.feedbackGain);
       this.feedbackGain.connect(this.delayNode);
 
-      // Connect graph: Media -> Bass -> Mid -> Treble -> Gain -> Analyser -> Destination
+      // Connect DSP chain
       if (mediaElement) {
         this.sourceNode = this.ctx.createMediaElementSource(mediaElement);
-        this.sourceNode.connect(this.bassFilter);
+        this.rebuildAudioChain();
       }
-
-      this.bassFilter.connect(this.midFilter);
-      this.midFilter.connect(this.trebleFilter);
-      this.trebleFilter.connect(this.gainNode);
-      this.gainNode.connect(this.analyser);
-      this.analyser.connect(this.ctx.destination);
 
       this.isInitialized = true;
     } catch (e) {
       console.warn("AudioContext setup warning:", e);
     }
+  },
+
+  rebuildAudioChain() {
+    if (!this.sourceNode) return;
+    try {
+      this.sourceNode.disconnect();
+      this.highpassFilter.disconnect();
+      this.humNotchFilter.disconnect();
+      this.bassFilter.disconnect();
+      this.midFilter.disconnect();
+      this.trebleFilter.disconnect();
+      this.gainNode.disconnect();
+      this.analyser.disconnect();
+    } catch (e) {}
+
+    let lastNode = this.sourceNode;
+
+    // Optional Noise Reduction
+    if (this.noiseReductionEnabled) {
+      lastNode.connect(this.highpassFilter);
+      this.highpassFilter.connect(this.humNotchFilter);
+      lastNode = this.humNotchFilter;
+    }
+
+    // EQ Chain
+    lastNode.connect(this.bassFilter);
+    this.bassFilter.connect(this.midFilter);
+    this.midFilter.connect(this.trebleFilter);
+    this.trebleFilter.connect(this.gainNode);
+    this.gainNode.connect(this.analyser);
+    this.analyser.connect(this.ctx.destination);
+  },
+
+  toggleNoiseReduction(enabled) {
+    this.noiseReductionEnabled = enabled;
+    this.rebuildAudioChain();
   },
 
   resume() {
@@ -116,7 +185,6 @@ export const AudioStudio = {
     this.activeEffect = type;
     if (!this.ctx || !this.trebleFilter) return;
 
-    // Disconnect effects chain
     try {
       this.trebleFilter.disconnect();
       this.delayNode.disconnect();
@@ -132,20 +200,15 @@ export const AudioStudio = {
       this.midFilter.gain.setValueAtTime(14, this.ctx.currentTime);
       this.trebleFilter.connect(this.gainNode);
     } else {
-      // Normal
       this.setEQ(this.bass, this.mid, this.treble);
       this.trebleFilter.connect(this.gainNode);
     }
   },
 
-  /**
-   * Reads real-time spectrum frequency values for UI waveform meters
-   */
   getSpectrumLevels() {
     if (!this.analyser || !this.spectrumData) return [10, 15, 20, 15, 10];
     this.analyser.getByteFrequencyData(this.spectrumData);
     
-    // Aggregate into 5 frequency bands
     const bands = [0, 0, 0, 0, 0];
     const step = Math.floor(this.spectrumData.length / 5);
     for (let i = 0; i < 5; i++) {
@@ -156,6 +219,71 @@ export const AudioStudio = {
       bands[i] = Math.max(3, Math.round((sum / step / 255) * 20));
     }
     return bands;
+  },
+
+  /**
+   * Automatic Beat & Rhythm Transient Detector
+   * Analyzes audio track buffer and detects sudden energy peaks
+   */
+  async detectBeatsFromBuffer(audioBuffer) {
+    const rawData = audioBuffer.getChannelData(0);
+    const sampleRate = audioBuffer.sampleRate;
+    const step = Math.floor(sampleRate * 0.05); // 50ms windows
+    const peaks = [];
+    let prevEnergy = 0;
+
+    for (let i = 0; i < rawData.length - step; i += step) {
+      let sum = 0;
+      for (let j = 0; j < step; j++) {
+        sum += rawData[i + j] * rawData[i + j];
+      }
+      const energy = Math.sqrt(sum / step);
+
+      // Detect prominent sudden energy jump (beat transient)
+      if (energy > 0.12 && energy > prevEnergy * 1.5) {
+        const timeSec = i / sampleRate;
+        if (peaks.length === 0 || timeSec - peaks[peaks.length - 1] > 0.28) {
+          peaks.push(parseFloat(timeSec.toFixed(2)));
+        }
+      }
+      prevEnergy = energy;
+    }
+
+    this.beatMarkers = peaks;
+    return peaks;
+  },
+
+  /**
+   * AI Voice Cloning & Speech Synthesis Generator
+   * Generates vocal audio tracks from text script using persona formant parameters
+   */
+  generateVoiceClone(text, personaId = 'trailer', onComplete) {
+    if (!window.speechSynthesis) {
+      alert("Speech Synthesis is not supported in this browser.");
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const persona = this.voicePersonas.find(p => p.id === personaId) || this.voicePersonas[0];
+    const utterance = new SpeechSynthesisUtterance(text);
+    
+    utterance.pitch = persona.pitch;
+    utterance.rate = persona.rate;
+
+    // Pick best English voice available
+    const voices = window.speechSynthesis.getVoices();
+    const preferredVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Neural'))) || voices[0];
+    if (preferredVoice) utterance.voice = preferredVoice;
+
+    utterance.onstart = () => {
+      this.playSynthesizedSFX('whoosh');
+    };
+
+    utterance.onend = () => {
+      if (onComplete) onComplete();
+    };
+
+    window.speechSynthesis.speak(utterance);
   },
 
   /**
@@ -186,7 +314,7 @@ export const AudioStudio = {
 
       case 'ding':
         osc.type = 'triangle';
-        osc.frequency.setValueAtTime(987.77, now); // B5
+        osc.frequency.setValueAtTime(987.77, now);
         env.gain.setValueAtTime(0.3, now);
         env.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
         osc.start(now);
@@ -204,7 +332,7 @@ export const AudioStudio = {
         break;
 
       case 'lofi-chord':
-        [261.63, 329.63, 392.00, 493.88].forEach(freq => { // C Major 7
+        [261.63, 329.63, 392.00, 493.88].forEach(freq => {
           const chordOsc = ctx.createOscillator();
           const chordGain = ctx.createGain();
           chordOsc.type = 'sine';
@@ -220,19 +348,14 @@ export const AudioStudio = {
     }
   },
 
-  /**
-   * Extracts audio from video and creates a downloadable WAV file
-   */
   async extractAudioWAV(videoElement) {
     if (!videoElement.src) throw new Error("No media loaded");
     
-    // Fetch media buffer and decode
     const response = await fetch(videoElement.src);
     const arrayBuffer = await response.arrayBuffer();
     const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
     const audioBuffer = await tempCtx.decodeAudioData(arrayBuffer);
 
-    // Encode to WAV format
     const wavBlob = this.audioBufferToWav(audioBuffer);
     const url = URL.createObjectURL(wavBlob);
     
@@ -266,26 +389,20 @@ export const AudioStudio = {
     const arrayBuffer = new ArrayBuffer(totalSize);
     const view = new DataView(arrayBuffer);
     
-    // RIFF chunk
     this.writeString(view, 0, 'RIFF');
     view.setUint32(4, 36 + dataSize, true);
     this.writeString(view, 8, 'WAVE');
-    
-    // fmt chunk
     this.writeString(view, 12, 'fmt ');
     view.setUint32(16, 16, true);
     view.setUint16(20, format, true);
     view.setUint16(22, numChannels, true);
     view.setUint32(24, sampleRate, true);
-    view.setUint32(28, byteRate, true);
+    view.setUint28 ? view.setUint32(28, byteRate, true) : view.setUint32(28, byteRate, true);
     view.setUint16(32, blockAlign, true);
     view.setUint16(34, bitDepth, true);
-    
-    // data chunk
     this.writeString(view, 36, 'data');
     view.setUint32(40, dataSize, true);
     
-    // Write PCM samples
     let offset = 44;
     for (let i = 0; i < interleaved.length; i++, offset += 2) {
       const s = Math.max(-1, Math.min(1, interleaved[i]));
