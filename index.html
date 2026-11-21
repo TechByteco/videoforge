@@ -22,28 +22,28 @@
         <div class="logo-dot"></div>
         Video<em>Forge</em> <span style="font-size:12px;color:var(--txt-dim);font-weight:600;margin-left:4px">PRO</span>
       </div>
-      <div class="badge">STUDIO v2.0</div>
+      <div class="badge">STUDIO v2.1</div>
     </div>
 
     <!-- Center Navigation Tabs -->
     <div class="ntabs">
-      <button class="nt on" onclick="switchInspectorTab('edit')">
+      <button class="nt on" data-tab="edit" onclick="App.switchTab('edit')">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h18"/></svg>
         Editor
       </button>
-      <button class="nt" onclick="switchInspectorTab('filters')">
+      <button class="nt" data-tab="filters" onclick="App.switchTab('filters')">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
         Filter Gallery
       </button>
-      <button class="nt" onclick="switchInspectorTab('ai-enhance')">
+      <button class="nt" data-tab="ai-enhance" onclick="App.switchTab('ai-enhance')">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M4.93 19.07l14.14-14.14"/></svg>
         AI Enhance
       </button>
-      <button class="nt" onclick="switchInspectorTab('audio')">
+      <button class="nt" data-tab="audio" onclick="App.switchTab('audio')">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
         Audio &amp; Voice
       </button>
-      <button class="nt" onclick="switchInspectorTab('subs')">
+      <button class="nt" data-tab="subs" onclick="App.switchTab('subs')">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h3M12 15h5M7 11h5M15 11h2"/></svg>
         Subtitles &amp; Fonts
       </button>
@@ -87,7 +87,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
           <span>Demo</span>
         </button>
-        <button class="sbt" onclick="App.openAutoSubsModal()" title="Auto-Generate Subtitles Clearly">
+        <button class="sbt" onclick="App.openAutoSubsModal()" title="Auto-Generate Subtitles">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
           <span>Auto-Sub</span>
         </button>
@@ -113,7 +113,7 @@
           <span>Split</span>
         </button>
         <div class="sdiv"></div>
-        <button class="sbt" onclick="switchInspectorTab('subs')" title="AI Subtitles &amp; Fonts">
+        <button class="sbt" onclick="App.switchTab('subs')" title="AI Subtitles &amp; Fonts">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h3M12 15h5M7 11h5M15 11h2"/></svg>
           <span>Subs</span>
         </button>
@@ -251,7 +251,7 @@
             <div class="track-lane track-video">
               <span class="track-lane-label">V1 VIDEO</span>
               <div class="track-clip-block">
-                <span class="clip-title">Master Video Track (AI Super-Res + Auto-Reframe)</span>
+                <span class="clip-title">Master Video Track</span>
               </div>
             </div>
 
@@ -267,7 +267,7 @@
             <div class="track-lane track-subtitles">
               <span class="track-lane-label">T1 SUBS</span>
               <div class="track-clip-block" style="background:rgba(232,255,71,0.15);border-color:rgba(232,255,71,0.3)">
-                <span class="clip-title" style="color:var(--acc)">Auto Subtitles (Motion Keyframes + Multi-Font)</span>
+                <span class="clip-title" style="color:var(--acc)">Subtitles (Multi-Font &amp; Motion Keyframes)</span>
               </div>
             </div>
           </div>
@@ -280,7 +280,7 @@
         <div class="inspector-header">
           <div class="inspector-title">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-            <span id="inspectorTabTitle">Properties</span>
+            <span id="inspectorTabTitle">Composition &amp; Edit</span>
           </div>
           <div class="audio-spectrum-mini" title="Live Audio Output Spectrum">
             <div class="spectrum-bar active"></div>
@@ -293,267 +293,343 @@
 
         <div class="inspector-body">
 
-          <!-- 1. CURATED FILTER GALLERY (LIST OUT FILTERS) -->
-          <div class="inspector-section" id="sec-filters">
-            <div class="section-head">
-              <span class="section-title">Visual Filter Gallery (24 Presets)</span>
+          <!-- TAB 1: COMPOSITION & EDIT -->
+          <div id="panel-view-edit" class="inspector-panel-view">
+            <!-- Aspect Ratio -->
+            <div class="inspector-section">
+              <div class="section-head"><span class="section-title">Canvas Aspect Ratio</span></div>
+              <div class="section-body">
+                <div class="ratio-grid">
+                  <button class="btn-ratio active" onclick="setRatio('16:9', this)">16:9</button>
+                  <button class="btn-ratio" onclick="setRatio('9:16', this)">9:16</button>
+                  <button class="btn-ratio" onclick="setRatio('1:1', this)">1:1</button>
+                  <button class="btn-ratio" onclick="setRatio('4:5', this)">4:5</button>
+                  <button class="btn-ratio" onclick="setRatio('21:9', this)">21:9</button>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-dim);cursor:pointer;margin-top:2px">
+                  <input type="checkbox" checked onchange="FilterEngine.blurBackground = this.checked">
+                  Smart Background Blur Fill
+                </label>
+              </div>
             </div>
-            <div class="section-body">
-              <div class="filter-gallery-grid" id="filterGalleryGrid"></div>
-            </div>
-          </div>
 
-          <!-- 2. VIDEO QUALITY ENHANCER (AI SUPER-RES & DE-HAZE) -->
-          <div class="inspector-section">
-            <div class="section-head">
-              <span class="section-title">Video Quality Enhancer</span>
-            </div>
-            <div class="section-body">
-              <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-dim);cursor:pointer">
-                <input type="checkbox" onchange="FilterEngine.enhancerEnabled=this.checked;App.toast(this.checked?'AI Enhancer ON':'AI Enhancer OFF')">
-                Enable AI Clarity &amp; Super-Resolution
-              </label>
-              <div class="control-row">
-                <div class="control-label"><span>Clarity / Micro-Contrast</span><span class="val">0</span></div>
-                <div class="range-wrap"><input type="range" min="0" max="100" value="0" oninput="FilterEngine.clarity=this.value;this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value"></div>
-              </div>
-              <div class="control-row">
-                <div class="control-label"><span>De-Haze (Clear Atmospheric Fog)</span><span class="val">0</span></div>
-                <div class="range-wrap"><input type="range" min="0" max="100" value="0" oninput="FilterEngine.deHaze=this.value;this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value"></div>
-              </div>
-              <div class="control-row">
-                <div class="control-label"><span>Edge Sharpening</span><span class="val">0</span></div>
-                <div class="range-wrap"><input type="range" min="0" max="100" value="0" oninput="FilterEngine.sharpen=this.value;this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 3. AI AUTO-REFRAME & DIGITAL STABILIZATION -->
-          <div class="inspector-section">
-            <div class="section-head">
-              <span class="section-title">AI Auto-Reframe &amp; Stabilize</span>
-            </div>
-            <div class="section-body">
-              <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-dim);cursor:pointer">
-                <input type="checkbox" onchange="FilterEngine.autoReframe=this.checked;App.toast(this.checked?'AI Auto-Reframe ON':'Auto-Reframe OFF')">
-                AI Auto-Reframe (Follow Subject in 9:16 / 1:1)
-              </label>
-              <div class="control-row">
-                <div class="control-label"><span>Reframe Tracking Mode</span></div>
-                <select onchange="FilterEngine.reframeMode=this.value">
-                  <option value="center">Center Action Focus</option>
-                  <option value="dynamic">Dynamic Action Tracking</option>
-                  <option value="pan">Cinematic Slow Pan Sweep</option>
-                </select>
-              </div>
-              <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-dim);cursor:pointer;margin-top:4px">
-                <input type="checkbox" onchange="FilterEngine.stabilizeEnabled=this.checked;App.toast(this.checked?'Digital Stabilization ON':'Stabilization OFF')">
-                Digital Video Stabilization (Anti-Jitter)
-              </label>
-              <div class="control-row">
-                <div class="control-label"><span>Stabilization Strength</span></div>
-                <select onchange="FilterEngine.stabilizeLevel=this.value">
-                  <option value="smooth">Smooth Handheld</option>
-                  <option value="tripod">Tripod Lock Simulation</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <!-- 4. BEAUTY ENHANCE & FACE EFFECTS -->
-          <div class="inspector-section">
-            <div class="section-head">
-              <span class="section-title">Beauty Enhance &amp; Face Effects</span>
-            </div>
-            <div class="section-body">
-              <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-dim);cursor:pointer">
-                <input type="checkbox" onchange="FilterEngine.beautyEnabled=this.checked;App.toast(this.checked?'Beauty Enhance ON':'Beauty OFF')">
-                Enable Beauty Filters
-              </label>
-              <div class="control-row">
-                <div class="control-label"><span>Skin Softening</span><span class="val">0</span></div>
-                <div class="range-wrap"><input type="range" min="0" max="100" value="0" oninput="FilterEngine.skinSmooth=this.value;this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value"></div>
-              </div>
-              <div class="control-row">
-                <div class="control-label"><span>Face Glow / Radiance</span><span class="val">0</span></div>
-                <div class="range-wrap"><input type="range" min="0" max="100" value="0" oninput="FilterEngine.faceGlow=this.value;this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 5. SUBTITLES, FONTS & MOTION KEYFRAMES -->
-          <div class="inspector-section" id="sec-subtitles">
-            <div class="section-head">
-              <span class="section-title">Subtitles, Fonts &amp; Motion</span>
-            </div>
-            <div class="section-body">
-              <button class="btn-upload" style="width:100%;padding:10px" onclick="App.openAutoSubsModal()">
-                🤖 Clear Auto-Generate Subtitles
-              </button>
-              
-              <div class="control-row">
-                <div class="control-label"><span>Subtitle Font Selection</span></div>
-                <select id="subFontSelect"></select>
-              </div>
-
-              <div class="control-row">
-                <div class="control-label"><span>Motion Keyframe Animation</span></div>
-                <select id="subMotionSelect"></select>
-              </div>
-
-              <div class="control-row">
-                <div class="control-label"><span>Font Size</span><span class="val">32px</span></div>
-                <div class="range-wrap"><input type="range" min="16" max="64" value="32" oninput="SubtitlesManager.style.size=parseInt(this.value);this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value+'px'"></div>
-              </div>
-
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-                <div class="control-row">
-                  <div class="control-label"><span>Text Color</span></div>
-                  <input type="color" value="#e8ff47" onchange="SubtitlesManager.style.color=this.value">
+            <!-- Transform & Scale -->
+            <div class="inspector-section">
+              <div class="section-head"><span class="section-title">Transform &amp; Scale</span></div>
+              <div class="section-body">
+                <div class="preset-grid" style="grid-template-columns:repeat(4,1fr)">
+                  <button class="btn-preset" onclick="FilterEngine.rotation = (FilterEngine.rotation + 90) % 360">Rotate 90°</button>
+                  <button class="btn-preset" onclick="FilterEngine.flipH = !FilterEngine.flipH">Flip H</button>
+                  <button class="btn-preset" onclick="FilterEngine.flipV = !FilterEngine.flipV">Flip V</button>
+                  <button class="btn-preset" onclick="FilterEngine.rotation=0;FilterEngine.flipH=false;FilterEngine.flipV=false">Reset</button>
                 </div>
                 <div class="control-row">
-                  <div class="control-label"><span>Outline Color</span></div>
-                  <input type="color" value="#000000" onchange="SubtitlesManager.style.strokeColor=this.value">
+                  <div class="control-label"><span>Zoom Scale</span></div>
+                  <div class="range-wrap"><input type="range" min="1.0" max="3.0" step="0.1" value="1.0" oninput="FilterEngine.zoomScale=parseFloat(this.value)"></div>
                 </div>
               </div>
+            </div>
 
-              <!-- Language Translator -->
-              <div class="control-row" style="margin-top:4px">
-                <div class="control-label"><span>Translate Subtitles To</span></div>
+            <!-- Manual Color Grading -->
+            <div class="inspector-section">
+              <div class="section-head"><span class="section-title">Manual Color Adjustments</span></div>
+              <div class="section-body">
+                <div class="control-row">
+                  <div class="control-label"><span>Brightness</span><span class="val">0</span></div>
+                  <div class="range-wrap"><input type="range" id="rb" min="-100" max="100" value="0"></div>
+                </div>
+                <div class="control-row">
+                  <div class="control-label"><span>Contrast</span><span class="val">0</span></div>
+                  <div class="range-wrap"><input type="range" id="rc" min="-100" max="100" value="0"></div>
+                </div>
+                <div class="control-row">
+                  <div class="control-label"><span>Saturation</span><span class="val">0</span></div>
+                  <div class="range-wrap"><input type="range" id="rs" min="-100" max="100" value="0"></div>
+                </div>
+                <div class="control-row">
+                  <div class="control-label"><span>Exposure</span><span class="val">0</span></div>
+                  <div class="range-wrap"><input type="range" id="re" min="-100" max="100" value="0"></div>
+                </div>
+                <div class="control-row">
+                  <div class="control-label"><span>Warmth / Balance</span><span class="val">0</span></div>
+                  <div class="range-wrap"><input type="range" id="rw" min="-100" max="100" value="0"></div>
+                </div>
+                <div class="control-row">
+                  <div class="control-label"><span>Hue Rotation</span><span class="val">0</span></div>
+                  <div class="range-wrap"><input type="range" id="rh" min="0" max="360" value="0"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Text Titles & Overlays -->
+            <div class="inspector-section">
+              <div class="section-head"><span class="section-title">Text Overlays &amp; Stickers</span></div>
+              <div class="section-body">
                 <div style="display:flex;gap:6px">
-                  <select id="subLangTranslateSelect" style="flex:1">
-                    <option value="es">Spanish (Español)</option>
-                    <option value="fr">French (Français)</option>
-                    <option value="de">German (Deutsch)</option>
-                    <option value="ja">Japanese (日本語)</option>
-                    <option value="hi">Hindi (हिन्दी)</option>
-                    <option value="ar">Arabic (العربية)</option>
-                  </select>
-                  <button class="btn-preset" onclick="App.translateActiveSubtitles()">Translate</button>
+                  <input type="text" id="newTextOverlayInput" placeholder="Enter title or lower-third..." style="flex:1">
+                  <button class="btn-preset" onclick="addCustomText()">Add Title</button>
+                </div>
+                <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--txt-dim);margin-top:2px">QUICK BADGES</div>
+                <div class="preset-grid" style="grid-template-columns:repeat(4,1fr)">
+                  <button class="btn-preset" onclick="Player.addSticker('🔥', 0.5, 0.25)">🔥 Fire</button>
+                  <button class="btn-preset" onclick="Player.addSticker('🔴 REC', 0.15, 0.12)">🔴 REC</button>
+                  <button class="btn-preset" onclick="Player.addSticker('⭐ 4K', 0.85, 0.12)">⭐ 4K</button>
+                  <button class="btn-preset" onclick="Player.addSticker('⚡ NEW', 0.5, 0.8)">⚡ NEW</button>
                 </div>
               </div>
-
-              <div style="display:flex;gap:6px">
-                <button class="btn-preset" style="flex:1" onclick="SubtitlesManager.exportSRT()">Export .SRT</button>
-                <button class="btn-preset" style="flex:1" onclick="SubtitlesManager.exportVTT()">Export .VTT</button>
-                <button class="btn-preset" style="flex:1" onclick="document.getElementById('subtitleFileInput').click()">Import .SRT</button>
-              </div>
-              <div class="sub-items-list" id="subtitlesList"></div>
             </div>
           </div>
 
-          <!-- 6. AUDIO STUDIO, NOISE REDUCTION & VOICE CLONING -->
-          <div class="inspector-section" id="sec-audio">
-            <div class="section-head">
-              <span class="section-title">Audio Studio &amp; Noise Reduction</span>
-            </div>
-            <div class="section-body">
-              <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-dim);cursor:pointer">
-                <input type="checkbox" onchange="AudioStudio.toggleNoiseReduction(this.checked);App.toast(this.checked?'Noise Reduction ON':'Noise Reduction OFF')">
-                Audio Noise Reduction (Hiss, Hum &amp; Wind Cut)
-              </label>
-
-              <button class="btn-secondary" style="width:100%" onclick="App.openVoiceCloneModal()">
-                🎙️ AI Voice Cloning &amp; TTS Studio
-              </button>
-
-              <div class="control-row">
-                <div class="control-label"><span>Master Gain Booster</span><span class="val">100%</span></div>
-                <div class="range-wrap"><input type="range" min="0" max="300" value="100" oninput="Player.setVolume(this.value);this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value+'%'"></div>
-              </div>
-              <div class="control-row">
-                <div class="control-label"><span>Bass Boost (150Hz)</span><span class="val">0 dB</span></div>
-                <div class="range-wrap"><input type="range" min="-20" max="20" value="0" oninput="AudioStudio.bass=this.value;AudioStudio.setEQ(AudioStudio.bass,AudioStudio.mid,AudioStudio.treble);this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value+' dB'"></div>
-              </div>
-              <div class="control-row">
-                <div class="control-label"><span>Mid Vocals (1kHz)</span><span class="val">0 dB</span></div>
-                <div class="range-wrap"><input type="range" min="-20" max="20" value="0" oninput="AudioStudio.mid=this.value;AudioStudio.setEQ(AudioStudio.bass,AudioStudio.mid,AudioStudio.treble);this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value+' dB'"></div>
-              </div>
-              <div class="control-row">
-                <div class="control-label"><span>Treble Sparkle (4kHz)</span><span class="val">0 dB</span></div>
-                <div class="range-wrap"><input type="range" min="-20" max="20" value="0" oninput="AudioStudio.treble=this.value;AudioStudio.setEQ(AudioStudio.bass,AudioStudio.mid,AudioStudio.treble);this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value+' dB'"></div>
-              </div>
-              
-              <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--txt-dim);margin-top:4px">SFX SYNTHESIZER</div>
-              <div class="preset-grid">
-                <button class="btn-preset" onclick="AudioStudio.playSynthesizedSFX('whoosh')">💨 Whoosh</button>
-                <button class="btn-preset" onclick="AudioStudio.playSynthesizedSFX('ding')">🔔 Bell Ding</button>
-                <button class="btn-preset" onclick="AudioStudio.playSynthesizedSFX('cyber-pulse')">⚡ Cyber Beat</button>
-                <button class="btn-preset" onclick="AudioStudio.playSynthesizedSFX('lofi-chord')">🎹 LoFi Chord</button>
-                <button class="btn-preset" onclick="AudioStudio.setAudioEffect('reverb')">Room Reverb</button>
-                <button class="btn-preset" onclick="AudioStudio.setAudioEffect('radio')">Walkie Radio</button>
+          <!-- TAB 2: VISUAL FILTER GALLERY -->
+          <div id="panel-view-filters" class="inspector-panel-view" style="display:none">
+            <div class="inspector-section">
+              <div class="section-head"><span class="section-title">24 Curated Film &amp; Color Profiles</span></div>
+              <div class="section-body">
+                <!-- Filter Category Switchers -->
+                <div style="display:flex;gap:4px">
+                  <button class="btn-preset btn-filter-cat active" data-cat="all" onclick="App.filterGalleryByCategory('all')">All (24)</button>
+                  <button class="btn-preset btn-filter-cat" data-cat="cinematic" onclick="App.filterGalleryByCategory('cinematic')">Cinematic</button>
+                  <button class="btn-preset btn-filter-cat" data-cat="vintage" onclick="App.filterGalleryByCategory('vintage')">Vintage</button>
+                  <button class="btn-preset btn-filter-cat" data-cat="stylized" onclick="App.filterGalleryByCategory('stylized')">Stylized</button>
+                </div>
+                <div class="filter-gallery-grid" id="filterGalleryGrid"></div>
               </div>
             </div>
-          </div>
 
-          <!-- 7. COLOR GRADING ADJUSTMENTS -->
-          <div class="inspector-section">
-            <div class="section-head">
-              <span class="section-title">Manual Color Grading</span>
+            <!-- VFX Shaders -->
+            <div class="inspector-section">
+              <div class="section-head"><span class="section-title">VFX &amp; Shaders</span></div>
+              <div class="section-body">
+                <div class="control-row">
+                  <div class="control-label"><span>Vignette Edge Falloff</span><span class="val">0</span></div>
+                  <div class="range-wrap"><input type="range" min="0" max="100" value="0" oninput="FilterEngine.vignette=this.value"></div>
+                </div>
+                <div class="control-row">
+                  <div class="control-label"><span>Cinematic 2.39:1 Bars</span><span class="val">0</span></div>
+                  <div class="range-wrap"><input type="range" min="0" max="100" value="0" oninput="FilterEngine.letterbox=this.value"></div>
+                </div>
+                <div class="control-row">
+                  <div class="control-label"><span>Film Grain &amp; Dust</span><span class="val">0</span></div>
+                  <div class="range-wrap"><input type="range" min="0" max="100" value="0" oninput="FilterEngine.filmGrain=this.value"></div>
+                </div>
+                <div style="display:flex;gap:10px;margin-top:2px">
+                  <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-dim);cursor:pointer">
+                    <input type="checkbox" onchange="FilterEngine.vhsGlitch=this.checked"> VHS Glitch
+                  </label>
+                  <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-dim);cursor:pointer">
+                    <input type="checkbox" onchange="FilterEngine.scanlines=this.checked"> CRT Scanlines
+                  </label>
+                </div>
+              </div>
             </div>
-            <div class="section-body">
-              <div class="control-row">
-                <div class="control-label"><span>Brightness</span><span class="val">0</span></div>
-                <div class="range-wrap"><input type="range" id="rb" min="-100" max="100" value="0"></div>
-              </div>
-              <div class="control-row">
-                <div class="control-label"><span>Contrast</span><span class="val">0</span></div>
-                <div class="range-wrap"><input type="range" id="rc" min="-100" max="100" value="0"></div>
-              </div>
-              <div class="control-row">
-                <div class="control-label"><span>Saturation</span><span class="val">0</span></div>
-                <div class="range-wrap"><input type="range" id="rs" min="-100" max="100" value="0"></div>
-              </div>
-              <div class="control-row">
-                <div class="control-label"><span>Exposure</span><span class="val">0</span></div>
-                <div class="range-wrap"><input type="range" id="re" min="-100" max="100" value="0"></div>
-              </div>
-              <div class="control-row">
-                <div class="control-label"><span>Warmth / Balance</span><span class="val">0</span></div>
-                <div class="range-wrap"><input type="range" id="rw" min="-100" max="100" value="0"></div>
-              </div>
-              <div class="control-row">
-                <div class="control-label"><span>Hue Rotation</span><span class="val">0</span></div>
-                <div class="range-wrap"><input type="range" id="rh" min="0" max="360" value="0"></div>
+
+            <!-- Chroma Key -->
+            <div class="inspector-section">
+              <div class="section-head"><span class="section-title">Chroma Key (Green/Blue Screen)</span></div>
+              <div class="section-body">
+                <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-dim);cursor:pointer">
+                  <input type="checkbox" onchange="FilterEngine.chromaKeyEnabled=this.checked">
+                  Enable Color Removal
+                </label>
+                <div class="control-row">
+                  <div class="control-label"><span>Target Key Color</span></div>
+                  <input type="color" value="#00ff00" onchange="FilterEngine.chromaColor=this.value">
+                </div>
+                <div class="control-row">
+                  <div class="control-label"><span>Color Tolerance</span></div>
+                  <input type="range" min="0.05" max="0.8" step="0.02" value="0.35" oninput="FilterEngine.chromaTolerance=parseFloat(this.value)">
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- 8. ASPECT RATIO & FRAMING -->
-          <div class="inspector-section">
-            <div class="section-head">
-              <span class="section-title">Canvas Aspect Ratio</span>
-            </div>
-            <div class="section-body">
-              <div class="ratio-grid">
-                <button class="btn-ratio active" onclick="setRatio('16:9', this)">16:9</button>
-                <button class="btn-ratio" onclick="setRatio('9:16', this)">9:16</button>
-                <button class="btn-ratio" onclick="setRatio('1:1', this)">1:1</button>
-                <button class="btn-ratio" onclick="setRatio('4:5', this)">4:5</button>
-                <button class="btn-ratio" onclick="setRatio('21:9', this)">21:9</button>
+          <!-- TAB 3: AI ENHANCE & REFRAME -->
+          <div id="panel-view-ai-enhance" class="inspector-panel-view" style="display:none">
+            <!-- Video Quality Enhancer -->
+            <div class="inspector-section">
+              <div class="section-head"><span class="section-title">Video Quality Enhancer</span></div>
+              <div class="section-body">
+                <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-dim);cursor:pointer">
+                  <input type="checkbox" onchange="FilterEngine.enhancerEnabled=this.checked;App.toast(this.checked?'AI Enhancer ON':'AI Enhancer OFF')">
+                  Enable AI Clarity &amp; Super-Resolution
+                </label>
+                <div class="control-row">
+                  <div class="control-label"><span>Clarity / Micro-Contrast</span><span class="val">0</span></div>
+                  <div class="range-wrap"><input type="range" min="0" max="100" value="0" oninput="FilterEngine.clarity=this.value;this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value"></div>
+                </div>
+                <div class="control-row">
+                  <div class="control-label"><span>De-Haze (Clear Fog &amp; Milkiness)</span><span class="val">0</span></div>
+                  <div class="range-wrap"><input type="range" min="0" max="100" value="0" oninput="FilterEngine.deHaze=this.value;this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value"></div>
+                </div>
+                <div class="control-row">
+                  <div class="control-label"><span>Edge Sharpening</span><span class="val">0</span></div>
+                  <div class="range-wrap"><input type="range" min="0" max="100" value="0" oninput="FilterEngine.sharpen=this.value;this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value"></div>
+                </div>
               </div>
-              <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-dim);cursor:pointer;margin-top:2px">
-                <input type="checkbox" checked onchange="FilterEngine.blurBackground = this.checked">
-                Smart Background Blur Fill
-              </label>
+            </div>
+
+            <!-- AI Auto-Reframe & Stabilization -->
+            <div class="inspector-section">
+              <div class="section-head"><span class="section-title">AI Auto-Reframe &amp; Stabilize</span></div>
+              <div class="section-body">
+                <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-dim);cursor:pointer">
+                  <input type="checkbox" onchange="FilterEngine.autoReframe=this.checked;App.toast(this.checked?'AI Auto-Reframe ON':'Auto-Reframe OFF')">
+                  AI Auto-Reframe (Follow Subject in 9:16 / 1:1)
+                </label>
+                <div class="control-row">
+                  <div class="control-label"><span>Reframe Tracking Mode</span></div>
+                  <select onchange="FilterEngine.reframeMode=this.value">
+                    <option value="center">Center Action Focus</option>
+                    <option value="dynamic">Dynamic Action Tracking</option>
+                    <option value="pan">Cinematic Slow Pan Sweep</option>
+                  </select>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-dim);cursor:pointer;margin-top:4px">
+                  <input type="checkbox" onchange="FilterEngine.stabilizeEnabled=this.checked;App.toast(this.checked?'Digital Stabilization ON':'Stabilization OFF')">
+                  Digital Video Stabilization (Anti-Jitter)
+                </label>
+                <div class="control-row">
+                  <div class="control-label"><span>Stabilization Strength</span></div>
+                  <select onchange="FilterEngine.stabilizeLevel=this.value">
+                    <option value="smooth">Smooth Handheld</option>
+                    <option value="tripod">Tripod Lock Simulation</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Beauty Enhance -->
+            <div class="inspector-section">
+              <div class="section-head"><span class="section-title">Beauty Enhance &amp; Face Effects</span></div>
+              <div class="section-body">
+                <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-dim);cursor:pointer">
+                  <input type="checkbox" onchange="FilterEngine.beautyEnabled=this.checked;App.toast(this.checked?'Beauty Enhance ON':'Beauty OFF')">
+                  Enable Beauty Filters
+                </label>
+                <div class="control-row">
+                  <div class="control-label"><span>Skin Softening</span><span class="val">0</span></div>
+                  <div class="range-wrap"><input type="range" min="0" max="100" value="0" oninput="FilterEngine.skinSmooth=this.value;this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value"></div>
+                </div>
+                <div class="control-row">
+                  <div class="control-label"><span>Face Glow / Radiance</span><span class="val">0</span></div>
+                  <div class="range-wrap"><input type="range" min="0" max="100" value="0" oninput="FilterEngine.faceGlow=this.value;this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value"></div>
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- 9. TRANSFORM & SCALE -->
-          <div class="inspector-section">
-            <div class="section-head">
-              <span class="section-title">Transform &amp; Scale</span>
-            </div>
-            <div class="section-body">
-              <div class="preset-grid" style="grid-template-columns:repeat(4,1fr)">
-                <button class="btn-preset" onclick="FilterEngine.rotation = (FilterEngine.rotation + 90) % 360">Rotate 90°</button>
-                <button class="btn-preset" onclick="FilterEngine.flipH = !FilterEngine.flipH">Flip H</button>
-                <button class="btn-preset" onclick="FilterEngine.flipV = !FilterEngine.flipV">Flip V</button>
-                <button class="btn-preset" onclick="FilterEngine.rotation=0;FilterEngine.flipH=false;FilterEngine.flipV=false">Reset</button>
+          <!-- TAB 4: AUDIO STUDIO & VOICE -->
+          <div id="panel-view-audio" class="inspector-panel-view" style="display:none">
+            <div class="inspector-section">
+              <div class="section-head"><span class="section-title">Audio Studio &amp; Noise Reduction</span></div>
+              <div class="section-body">
+                <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-dim);cursor:pointer">
+                  <input type="checkbox" onchange="AudioStudio.toggleNoiseReduction(this.checked);App.toast(this.checked?'Noise Reduction ON':'Noise Reduction OFF')">
+                  Audio Noise Reduction (Hiss, Hum &amp; Rumble Cut)
+                </label>
+
+                <button class="btn-secondary" style="width:100%" onclick="App.openVoiceCloneModal()">
+                  🎙️ AI Voice Cloning &amp; TTS Studio
+                </button>
+
+                <div class="control-row">
+                  <div class="control-label"><span>Master Gain Booster</span><span class="val">100%</span></div>
+                  <div class="range-wrap"><input type="range" min="0" max="300" value="100" oninput="Player.setVolume(this.value);this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value+'%'"></div>
+                </div>
+                <div class="control-row">
+                  <div class="control-label"><span>Bass Boost (150Hz)</span><span class="val">0 dB</span></div>
+                  <div class="range-wrap"><input type="range" min="-20" max="20" value="0" oninput="AudioStudio.bass=this.value;AudioStudio.setEQ(AudioStudio.bass,AudioStudio.mid,AudioStudio.treble);this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value+' dB'"></div>
+                </div>
+                <div class="control-row">
+                  <div class="control-label"><span>Mid Vocals (1kHz)</span><span class="val">0 dB</span></div>
+                  <div class="range-wrap"><input type="range" min="-20" max="20" value="0" oninput="AudioStudio.mid=this.value;AudioStudio.setEQ(AudioStudio.bass,AudioStudio.mid,AudioStudio.treble);this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value+' dB'"></div>
+                </div>
+                <div class="control-row">
+                  <div class="control-label"><span>Treble Sparkle (4kHz)</span><span class="val">0 dB</span></div>
+                  <div class="range-wrap"><input type="range" min="-20" max="20" value="0" oninput="AudioStudio.treble=this.value;AudioStudio.setEQ(AudioStudio.bass,AudioStudio.mid,AudioStudio.treble);this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value+' dB'"></div>
+                </div>
+                
+                <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--txt-dim);margin-top:4px">SFX SYNTHESIZER</div>
+                <div class="preset-grid">
+                  <button class="btn-preset" onclick="AudioStudio.playSynthesizedSFX('whoosh')">💨 Whoosh</button>
+                  <button class="btn-preset" onclick="AudioStudio.playSynthesizedSFX('ding')">🔔 Bell Ding</button>
+                  <button class="btn-preset" onclick="AudioStudio.playSynthesizedSFX('cyber-pulse')">⚡ Cyber Beat</button>
+                  <button class="btn-preset" onclick="AudioStudio.playSynthesizedSFX('lofi-chord')">🎹 LoFi Chord</button>
+                  <button class="btn-preset" onclick="AudioStudio.setAudioEffect('reverb')">Room Reverb</button>
+                  <button class="btn-preset" onclick="AudioStudio.setAudioEffect('radio')">Walkie Radio</button>
+                </div>
               </div>
-              <div class="control-row">
-                <div class="control-label"><span>Zoom Scale</span></div>
-                <div class="range-wrap"><input type="range" min="1.0" max="3.0" step="0.1" value="1.0" oninput="FilterEngine.zoomScale=parseFloat(this.value)"></div>
+            </div>
+          </div>
+
+          <!-- TAB 5: SUBTITLES & TYPOGRAPHY -->
+          <div id="panel-view-subs" class="inspector-panel-view" style="display:none">
+            <div class="inspector-section">
+              <div class="section-head"><span class="section-title">Subtitles, Fonts &amp; Motion</span></div>
+              <div class="section-body">
+                <button class="btn-upload" style="width:100%;padding:10px" onclick="App.openAutoSubsModal()">
+                  🤖 Auto-Generate Subtitles
+                </button>
+                
+                <!-- Quick Add Subtitle at Current Time -->
+                <div style="display:flex;gap:6px">
+                  <input type="text" id="newSubtitleInput" placeholder="Type caption for current frame..." style="flex:1">
+                  <button class="btn-preset" onclick="App.addSubtitleAtPlayhead()">+ Add</button>
+                </div>
+
+                <div class="control-row">
+                  <div class="control-label"><span>Subtitle Font Selection</span></div>
+                  <select id="subFontSelect"></select>
+                </div>
+
+                <div class="control-row">
+                  <div class="control-label"><span>Motion Keyframe Animation</span></div>
+                  <select id="subMotionSelect"></select>
+                </div>
+
+                <div class="control-row">
+                  <div class="control-label"><span>Font Size</span><span class="val">34px</span></div>
+                  <div class="range-wrap"><input type="range" min="16" max="64" value="34" oninput="SubtitlesManager.style.size=parseInt(this.value);this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value+'px'"></div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+                  <div class="control-row">
+                    <div class="control-label"><span>Text Color</span></div>
+                    <input type="color" value="#e8ff47" onchange="SubtitlesManager.style.color=this.value">
+                  </div>
+                  <div class="control-row">
+                    <div class="control-label"><span>Outline Color</span></div>
+                    <input type="color" value="#000000" onchange="SubtitlesManager.style.strokeColor=this.value">
+                  </div>
+                </div>
+
+                <!-- Language Translator -->
+                <div class="control-row" style="margin-top:4px">
+                  <div class="control-label"><span>Translate Subtitles To</span></div>
+                  <div style="display:flex;gap:6px">
+                    <select id="subLangTranslateSelect" style="flex:1">
+                      <option value="es">Spanish (Español)</option>
+                      <option value="fr">French (Français)</option>
+                      <option value="de">German (Deutsch)</option>
+                      <option value="ja">Japanese (日本語)</option>
+                      <option value="hi">Hindi (हिन्दी)</option>
+                      <option value="ar">Arabic (العربية)</option>
+                    </select>
+                    <button class="btn-preset" onclick="App.translateActiveSubtitles()">Translate</button>
+                  </div>
+                </div>
+
+                <div style="display:flex;gap:6px">
+                  <button class="btn-preset" style="flex:1" onclick="SubtitlesManager.exportSRT()">Export .SRT</button>
+                  <button class="btn-preset" style="flex:1" onclick="SubtitlesManager.exportVTT()">Export .VTT</button>
+                  <button class="btn-preset" style="flex:1" onclick="document.getElementById('subtitleFileInput').click()">Import .SRT</button>
+                </div>
+
+                <button class="btn-secondary" style="width:100%;font-size:11px;padding:6px" onclick="App.clearAllSubtitles()">
+                  🗑️ Clear All Subtitles
+                </button>
+
+                <div class="sub-items-list" id="subtitlesList"></div>
               </div>
             </div>
           </div>
@@ -576,32 +652,53 @@
       <div class="modal-icon-badge">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
       </div>
-      <div class="modal-title">AI Subtitle Auto-Generator</div>
-      <div class="modal-sub" id="autoSubStatus">Transcribes speech into timestamped captions with grammar &amp; punctuation</div>
+      <div class="modal-title">Auto-Generate Subtitles</div>
+      <div class="modal-sub" id="autoSubStatus">Choose how you want to generate timestamped captions</div>
 
-      <div class="control-row">
-        <div class="control-label"><span>Audio Language</span></div>
-        <select id="autoSubLangSelect">
-          <option value="en-US">English (United States)</option>
-          <option value="en-GB">English (United Kingdom)</option>
-          <option value="es-ES">Spanish (Español)</option>
-          <option value="fr-FR">French (Français)</option>
-          <option value="de-DE">German (Deutsch)</option>
-          <option value="ja-JP">Japanese (日本語)</option>
-          <option value="ko-KR">Korean (한국어)</option>
-          <option value="hi-IN">Hindi (हिन्दी)</option>
-          <option value="zh-CN">Chinese (Mandarin)</option>
-          <option value="ar-SA">Arabic (العربية)</option>
-        </select>
+      <!-- Mode 1: Video Audio Saliency VAD -->
+      <div style="background:var(--sur3);padding:12px;border-radius:var(--radius-sm);border:1px solid var(--bdr)">
+        <div style="font-size:12px;font-weight:700;color:var(--acc);margin-bottom:4px">Option 1: Video Audio Waveform (VAD)</div>
+        <div style="font-size:11px;color:var(--txt-dim);margin-bottom:8px">Analyzes spoken bursts &amp; pauses directly in your video file to auto-create subtitle cues.</div>
+        <button class="btn-upload" style="width:100%;font-size:12px;padding:8px" onclick="App.runAutoSubtitlesEngine('audio-detect')">
+          ⚡ Detect Audio Speech Timings
+        </button>
+      </div>
+
+      <!-- Mode 2: Paste Script & Auto-Align -->
+      <div style="background:var(--sur3);padding:12px;border-radius:var(--radius-sm);border:1px solid var(--bdr)">
+        <div style="font-size:12px;font-weight:700;color:var(--acc2);margin-bottom:4px">Option 2: Paste Script / Lyrics &amp; Auto-Align</div>
+        <div style="font-size:11px;color:var(--txt-dim);margin-bottom:6px">Paste sentences below; they will be aligned to your video timeline.</div>
+        <textarea id="autoSubScriptInput" placeholder="Paste your script, lines or lyrics here..." style="width:100%;height:60px;background:var(--sur2);border:1px solid var(--bdr);border-radius:4px;color:var(--txt);padding:6px;font-size:11px;outline:none"></textarea>
+        <button class="btn-preset" style="width:100%;margin-top:6px;padding:8px" onclick="App.runAutoSubtitlesEngine('script-align')">
+          Align Script to Video
+        </button>
+      </div>
+
+      <!-- Mode 3: Live Microphone Speech Recognition -->
+      <div style="background:var(--sur3);padding:12px;border-radius:var(--radius-sm);border:1px solid var(--bdr)">
+        <div style="font-size:12px;font-weight:700;color:var(--ok);margin-bottom:4px">Option 3: Live Speech Recognition</div>
+        <div style="font-size:11px;color:var(--txt-dim);margin-bottom:6px">Transcribe speech in real-time as you speak.</div>
+        <div class="control-row" style="margin-bottom:6px">
+          <select id="autoSubLangSelect">
+            <option value="en-US">English (United States)</option>
+            <option value="en-GB">English (United Kingdom)</option>
+            <option value="es-ES">Spanish (Español)</option>
+            <option value="fr-FR">French (Français)</option>
+            <option value="de-DE">German (Deutsch)</option>
+            <option value="ja-JP">Japanese (日本語)</option>
+            <option value="hi-IN">Hindi (हिन्दी)</option>
+            <option value="ar-SA">Arabic (العربية)</option>
+          </select>
+        </div>
+        <button class="btn-preset" style="width:100%;padding:8px" onclick="App.runAutoSubtitlesEngine('mic-listen')">
+          🎙️ Listen &amp; Transcribe
+        </button>
       </div>
 
       <div class="progress-track">
         <div class="progress-bar" id="autoSubProgress"></div>
       </div>
 
-      <button class="btn-upload" style="width:100%" onclick="App.runAutoSubtitlesEngine()">
-        ✨ Start AI Transcription
-      </button>
       <button class="btn-secondary" style="align-self:center" onclick="App.closeModal('modalAutoSubs')">
         Close
       </button>
@@ -630,7 +727,7 @@
 
       <div class="control-row">
         <div class="control-label"><span>Voiceover Script</span></div>
-        <textarea id="voiceCloneTextInput" style="width:100%;height:80px;background:var(--sur3);border:1px solid var(--bdr);border-radius:var(--radius-sm);color:var(--txt);padding:8px;font-family:'Instrument Sans',sans-serif;font-size:12px;outline:none">In a world where video editing lives entirely in your browser, VideoForge Pro changes everything.</textarea>
+        <textarea id="voiceCloneTextInput" style="width:100%;height:80px;background:var(--sur3);border:1px solid var(--bdr);border-radius:var(--radius-sm);color:var(--txt);padding:8px;font-family:'Instrument Sans',sans-serif;font-size:12px;outline:none" placeholder="Type any narration or dialogue script to generate voiceover..."></textarea>
       </div>
 
       <button class="btn-upload" style="width:100%" onclick="App.generateVoiceoverAudio()">
@@ -715,31 +812,9 @@
     <span id="toastMsg">Ready</span>
   </div>
 
-  <!-- UI HELPER SCRIPT -->
+  <!-- UI SCRIPT INITIALIZATION -->
   <script type="module" src="js/app.js"></script>
   <script>
-    function switchInspectorTab(name) {
-      document.querySelectorAll('.nt').forEach(t => t.classList.remove('on'));
-      if (event && event.target) {
-        event.target.closest('.nt').classList.add('on');
-      }
-      const title = document.getElementById('inspectorTabTitle');
-      if (name === 'filters') {
-        title.textContent = 'Visual Filter Gallery';
-        document.getElementById('sec-filters')?.scrollIntoView({ behavior: 'smooth' });
-      } else if (name === 'ai-enhance') {
-        title.textContent = 'AI Enhance & Reframe';
-      } else if (name === 'audio') {
-        title.textContent = 'Audio Studio & Voice';
-        document.getElementById('sec-audio')?.scrollIntoView({ behavior: 'smooth' });
-      } else if (name === 'subs') {
-        title.textContent = 'Subtitles, Fonts & Motion';
-        document.getElementById('sec-subtitles')?.scrollIntoView({ behavior: 'smooth' });
-      } else {
-        title.textContent = 'Properties';
-      }
-    }
-
     function setRatio(ratio, el) {
       document.querySelectorAll('.btn-ratio').forEach(b => b.classList.remove('active'));
       el.classList.add('active');
@@ -750,6 +825,15 @@
         Player.canvas.height = dims.height;
       }
       App.toast(`Aspect Ratio: ${ratio}`);
+    }
+
+    function addCustomText() {
+      const val = document.getElementById('newTextOverlayInput')?.value;
+      if (val) {
+        Player.addTextOverlay(val, { font: 'Syne', size: 36, weight: '700', color: '#ffffff' });
+        document.getElementById('newTextOverlayInput').value = '';
+        App.toast('Title added to video');
+      }
     }
   </script>
 </body>

@@ -10,9 +10,9 @@ import { AudioStudio } from './audio.js';
 import { ExportEngine } from './export.js';
 
 export const App = {
-  // Undo / Redo History Stack
   historyStack: [],
   historyIndex: -1,
+  activeInspectorTab: 'edit',
 
   init() {
     this.cacheDOM();
@@ -22,9 +22,10 @@ export const App = {
     this.bindEvents();
     this.bindKeyboardShortcuts();
     this.startAudioSpectrumLoop();
-    this.pushHistoryState('Initial State');
+    this.pushHistoryState('Initial Clean State');
     this.renderSubtitlesList();
-    this.toast('⚡ VideoForge Pro v2.0 Ready');
+    this.switchTab('edit');
+    this.toast('⚡ VideoForge Pro Ready');
   },
 
   cacheDOM() {
@@ -54,7 +55,9 @@ export const App = {
       filterGalleryGrid: document.getElementById('filterGalleryGrid'),
       subFontSelect: document.getElementById('subFontSelect'),
       subMotionSelect: document.getElementById('subMotionSelect'),
+      inspectorTabTitle: document.getElementById('inspectorTabTitle'),
 
+      // Modals
       modalExport: document.getElementById('modalExport'),
       modalShortcuts: document.getElementById('modalShortcuts'),
       modalAutoSubs: document.getElementById('modalAutoSubs'),
@@ -102,9 +105,34 @@ export const App = {
     };
   },
 
-  /**
-   * Builds the Visual Filter Gallery Cards
-   */
+  switchTab(tabId) {
+    this.activeInspectorTab = tabId;
+    document.querySelectorAll('.nt').forEach(btn => {
+      if (btn.getAttribute('data-tab') === tabId) btn.classList.add('on');
+      else btn.classList.remove('on');
+    });
+
+    // Hide all inspector sections, show only the active tab's sections
+    document.querySelectorAll('.inspector-panel-view').forEach(view => {
+      view.style.display = 'none';
+    });
+
+    const activeView = document.getElementById(`panel-view-${tabId}`);
+    if (activeView) activeView.style.display = 'flex';
+
+    const titles = {
+      edit: 'Composition & Edit',
+      filters: 'Visual Filter Gallery',
+      'ai-enhance': 'AI Enhancement & Reframe',
+      audio: 'Audio Studio & Voice',
+      subs: 'Subtitles & Typography'
+    };
+
+    if (this.dom.inspectorTabTitle) {
+      this.dom.inspectorTabTitle.textContent = titles[tabId] || 'Properties';
+    }
+  },
+
   renderFilterGallery() {
     if (!this.dom.filterGalleryGrid) return;
     this.dom.filterGalleryGrid.innerHTML = '';
@@ -113,6 +141,7 @@ export const App = {
       const card = document.createElement('div');
       card.className = `filter-card ${FilterEngine.activeLUT === f.id ? 'active' : ''}`;
       card.setAttribute('data-id', f.id);
+      card.setAttribute('data-cat', f.cat);
       card.innerHTML = `
         <div class="filter-card-preview" style="background:linear-gradient(135deg, ${f.color}33, #09090e);border-color:${f.color}55">
           <span style="color:${f.color}">✦</span>
@@ -129,9 +158,21 @@ export const App = {
     });
   },
 
-  /**
-   * Populates Subtitle Font & Motion Selectors
-   */
+  filterGalleryByCategory(cat) {
+    document.querySelectorAll('.btn-filter-cat').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-cat') === cat);
+    });
+
+    document.querySelectorAll('.filter-card').forEach(card => {
+      const cardCat = card.getAttribute('data-cat');
+      if (cat === 'all' || cardCat === cat) {
+        card.style.display = 'flex';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+  },
+
   renderSubtitlesFontOptions() {
     if (this.dom.subFontSelect) {
       this.dom.subFontSelect.innerHTML = SubtitlesManager.fonts.map(f => 
@@ -139,7 +180,13 @@ export const App = {
       ).join('');
       this.dom.subFontSelect.addEventListener('change', (e) => {
         SubtitlesManager.style.font = e.target.value;
-        this.toast(`Subtitle Font: ${e.target.value}`);
+        if (document.fonts && document.fonts.load) {
+          document.fonts.load(`bold 32px '${e.target.value}'`).then(() => {
+            this.toast(`Subtitle Font: ${e.target.value}`);
+          });
+        } else {
+          this.toast(`Subtitle Font: ${e.target.value}`);
+        }
       });
     }
 
@@ -326,14 +373,14 @@ export const App = {
   },
 
   /**
-   * Run Beatmarking Detection across audio track
+   * Beatmarking & Transient Peak Detector
    */
   async runBeatDetection() {
     if (!Player.video.src) {
       this.toast('Upload media to detect beats');
       return;
     }
-    this.toast('🥁 Analyzing audio transients & beat drops…');
+    this.toast('🥁 Analyzing audio transients & kick drops…');
     try {
       const response = await fetch(Player.video.src);
       const arrayBuffer = await response.arrayBuffer();
@@ -343,16 +390,15 @@ export const App = {
       Timeline.setBeatMarkers(beats);
       this.toast(`✨ Detected ${beats.length} Beats! Snapped to timeline.`);
     } catch (e) {
-      // Fallback synthetic beat grid every 0.5s
       const beats = [];
       for (let t = 0.5; t < Timeline.duration; t += 0.5) beats.push(parseFloat(t.toFixed(2)));
       Timeline.setBeatMarkers(beats);
-      this.toast(`✨ Auto-Generated ${beats.length} Rhythm Beats`);
+      this.toast(`✨ Generated ${beats.length} Rhythm Beats`);
     }
   },
 
   /**
-   * Auto-Generate Subtitles Clearly
+   * Clear Auto-Subtitle Generation
    */
   openAutoSubsModal() {
     if (this.dom.modalAutoSubs) {
@@ -360,48 +406,131 @@ export const App = {
     }
   },
 
-  runAutoSubtitlesEngine() {
-    const lang = document.getElementById('autoSubLangSelect')?.value || 'en-US';
+  async runAutoSubtitlesEngine(mode = 'audio-detect') {
     const statusEl = document.getElementById('autoSubStatus');
     const progEl = document.getElementById('autoSubProgress');
 
-    SubtitlesManager.startAutoGenerator({
-      language: lang,
-      onStep: (stepText, pct) => {
-        if (statusEl) statusEl.textContent = stepText;
-        if (progEl) progEl.style.width = `${pct}%`;
-      },
-      onProgress: (chunk) => {
-        this.renderSubtitlesList();
-      },
-      onComplete: (cues) => {
-        if (progEl) progEl.style.width = '100%';
-        if (statusEl) statusEl.textContent = `Done! Generated ${cues.length} subtitle cues.`;
-        this.renderSubtitlesList();
-        this.toast(`✅ Subtitles Auto-Generated (${cues.length} Cues)`);
-        setTimeout(() => this.closeModal('modalAutoSubs'), 1200);
-      },
-      onError: (err) => {
-        if (statusEl) statusEl.textContent = "Auto-subtitles completed.";
-        this.renderSubtitlesList();
+    if (mode === 'audio-detect') {
+      if (!Player.video.src) {
+        this.toast('Upload a video first');
+        return;
       }
-    });
+
+      statusEl.textContent = 'Extracting audio & analyzing voice activity (VAD)...';
+      progEl.style.width = '35%';
+
+      try {
+        const response = await fetch(Player.video.src);
+        const arrayBuffer = await response.arrayBuffer();
+        const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const audioBuf = await tempCtx.decodeAudioData(arrayBuffer);
+
+        statusEl.textContent = 'Detecting speech timestamps & dialogue pauses...';
+        progEl.style.width = '70%';
+
+        const segments = await SubtitlesManager.autoSegmentSpeechFromAudio(audioBuf, Timeline.duration);
+
+        // Populate cues with detected timestamps
+        SubtitlesManager.cues = [];
+        segments.forEach((seg, idx) => {
+          SubtitlesManager.addCue(seg.start, seg.end, `Caption ${idx + 1}`);
+        });
+
+        progEl.style.width = '100%';
+        statusEl.textContent = `Generated ${segments.length} timestamped subtitle blocks!`;
+        this.renderSubtitlesList();
+        this.toast(`✅ Auto-Generated ${segments.length} Subtitles`);
+        setTimeout(() => this.closeModal('modalAutoSubs'), 1200);
+
+      } catch (e) {
+        statusEl.textContent = 'Generated uniform subtitle cadence.';
+        progEl.style.width = '100%';
+        const dur = Timeline.duration || 12;
+        SubtitlesManager.cues = [];
+        for (let t = 0.5; t < dur - 1; t += 3.5) {
+          SubtitlesManager.addCue(t, t + 3.0, `Subtitle cue`);
+        }
+        this.renderSubtitlesList();
+        setTimeout(() => this.closeModal('modalAutoSubs'), 1200);
+      }
+
+    } else if (mode === 'script-align') {
+      const script = document.getElementById('autoSubScriptInput')?.value;
+      if (!script || !script.trim()) {
+        this.toast('Enter or paste script text first');
+        return;
+      }
+
+      const dur = Timeline.duration || 15;
+      const lines = script.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+      const step = Math.max(1.5, dur / (lines.length || 1));
+
+      SubtitlesManager.cues = [];
+      lines.forEach((line, idx) => {
+        const start = idx * step;
+        const end = Math.min(dur, start + step - 0.2);
+        SubtitlesManager.addCue(start, end, line);
+      });
+
+      this.renderSubtitlesList();
+      this.toast(`✅ Aligned ${lines.length} captions`);
+      this.closeModal('modalAutoSubs');
+
+    } else {
+      // Live microphone mode
+      const lang = document.getElementById('autoSubLangSelect')?.value || 'en-US';
+      statusEl.textContent = 'Listening to speech via microphone...';
+      progEl.style.width = '50%';
+
+      SubtitlesManager.startLiveTranscription({
+        language: lang,
+        onProgress: () => this.renderSubtitlesList(),
+        onComplete: (cues) => {
+          progEl.style.width = '100%';
+          statusEl.textContent = `Recorded ${cues.length} spoken cues!`;
+          this.renderSubtitlesList();
+          this.toast(`✅ Captured ${cues.length} Subtitles`);
+          setTimeout(() => this.closeModal('modalAutoSubs'), 1200);
+        },
+        onError: (err) => {
+          statusEl.textContent = 'Voice capture ended or unavailable.';
+          this.renderSubtitlesList();
+        }
+      });
+    }
   },
 
-  /**
-   * Video Language Translator
-   */
+  addSubtitleAtPlayhead() {
+    const input = document.getElementById('newSubtitleInput');
+    const text = input ? input.value : '';
+    if (!text || !text.trim()) {
+      this.toast('Type subtitle text first');
+      return;
+    }
+
+    const cur = Timeline.currentTime || 0;
+    const dur = Timeline.duration || 10;
+    const end = Math.min(dur, cur + 3.0);
+    SubtitlesManager.addCue(cur, end, text);
+    if (input) input.value = '';
+    this.renderSubtitlesList();
+    this.toast(`Added subtitle at ${Timeline.formatTimecode(cur)}`);
+  },
+
+  clearAllSubtitles() {
+    SubtitlesManager.clearAllCues();
+    this.renderSubtitlesList();
+    this.toast('All subtitles cleared');
+  },
+
   async translateActiveSubtitles() {
     const targetLang = document.getElementById('subLangTranslateSelect')?.value || 'es';
-    this.toast(`🌐 Translating subtitles to [${targetLang.toUpperCase()}]…`);
+    this.toast(`🌐 Translating subtitles [${targetLang.toUpperCase()}]…`);
     await SubtitlesManager.translateSubtitles(targetLang);
     this.renderSubtitlesList();
     this.toast(`✅ Subtitles translated to [${targetLang.toUpperCase()}]`);
   },
 
-  /**
-   * Voice Cloning Studio
-   */
   openVoiceCloneModal() {
     if (this.dom.modalVoiceClone) {
       this.dom.modalVoiceClone.classList.add('open');
@@ -409,12 +538,12 @@ export const App = {
   },
 
   generateVoiceoverAudio() {
-    const text = document.getElementById('voiceCloneTextInput')?.value || 'Welcome to VideoForge Pro, cutting edge browser editing.';
+    const text = document.getElementById('voiceCloneTextInput')?.value || 'Record or type any narration script here.';
     const persona = document.getElementById('voicePersonaSelect')?.value || 'trailer';
     
-    this.toast(`🎙️ Synthesizing [${persona.toUpperCase()}] Voiceover…`);
+    this.toast(`🎙️ Synthesizing Voiceover [${persona.toUpperCase()}]…`);
     AudioStudio.generateVoiceClone(text, persona, () => {
-      this.toast('✨ Voiceover Generated & Synced!');
+      this.toast('✨ Voiceover Synthesized & Synced!');
       this.closeModal('modalVoiceClone');
     });
   },
@@ -422,17 +551,42 @@ export const App = {
   renderSubtitlesList() {
     if (!this.dom.subtitlesList) return;
     this.dom.subtitlesList.innerHTML = '';
+
+    if (!SubtitlesManager.cues.length) {
+      this.dom.subtitlesList.innerHTML = `<div style="text-align:center;color:var(--txt-dim);padding:18px 0;font-size:11.5px">No subtitles yet. Type above and click "+ Add Subtitle" or use "Auto-Generate".</div>`;
+      return;
+    }
     
     SubtitlesManager.cues.forEach(cue => {
       const item = document.createElement('div');
       item.className = 'sub-item';
       item.innerHTML = `
-        <div class="sub-item-time">${Timeline.formatTimecode(cue.start)} → ${Timeline.formatTimecode(cue.end)}</div>
-        <div class="sub-item-text">${cue.text}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="sub-item-time">${Timeline.formatTimecode(cue.start)} → ${Timeline.formatTimecode(cue.end)}</div>
+          <button style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:11px" title="Delete cue">✕</button>
+        </div>
+        <div class="sub-item-text" contenteditable="true">${cue.text}</div>
       `;
-      item.addEventListener('click', () => {
+
+      // Seek on time click
+      item.querySelector('.sub-item-time').addEventListener('click', () => {
         Player.seek(cue.start);
       });
+
+      // Edit in place
+      const textEl = item.querySelector('.sub-item-text');
+      textEl.addEventListener('blur', () => {
+        SubtitlesManager.updateCue(cue.id, textEl.textContent);
+      });
+
+      // Delete cue
+      item.querySelector('button').addEventListener('click', (e) => {
+        e.stopPropagation();
+        SubtitlesManager.deleteCue(cue.id);
+        this.renderSubtitlesList();
+        this.toast('Subtitle deleted');
+      });
+
       this.dom.subtitlesList.appendChild(item);
     });
   },
@@ -481,7 +635,7 @@ export const App = {
   exportProjectJSON() {
     const projectData = {
       version: '2.0.0',
-      title: 'VideoForge Project',
+      title: 'Video Project',
       timestamp: Date.now(),
       filters: FilterEngine,
       timeline: {
@@ -547,23 +701,23 @@ export const App = {
     const ctx = canvas.getContext('2d');
 
     const grad = ctx.createLinearGradient(0, 0, 1280, 720);
-    grad.addColorStop(0, '#0d0d1a');
-    grad.addColorStop(0.5, '#1e1035');
-    grad.addColorStop(1, '#091522');
+    grad.addColorStop(0, '#0a0d18');
+    grad.addColorStop(0.5, '#19102c');
+    grad.addColorStop(1, '#081724');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 1280, 720);
 
     ctx.fillStyle = '#e8ff47';
-    ctx.font = '800 64px Syne, sans-serif';
+    ctx.font = '800 58px Syne, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('VideoForge Pro v2.0', 640, 320);
+    ctx.fillText('Video Studio Demo', 640, 320);
 
     ctx.fillStyle = '#f0f0f8';
-    ctx.font = '500 24px Instrument Sans, sans-serif';
-    ctx.fillText('AI Reframe · Beat Marking · Voice Cloning · 4K Super-Resolution', 640, 380);
+    ctx.font = '500 22px Instrument Sans, sans-serif';
+    ctx.fillText('AI Reframe · Beat Marking · Subtitle Engine · 4K Super-Resolution', 640, 380);
 
     canvas.toBlob((blob) => {
-      const file = new File([blob], 'videoforge-demo.png', { type: 'image/png' });
+      const file = new File([blob], 'studio-demo.png', { type: 'image/png' });
       Player.loadFromFile(file);
       this.toast('Loaded Demo Sample');
     });
@@ -590,7 +744,7 @@ export const App = {
   openExportModal() {
     this.dom.modalExport.classList.add('open');
     this.dom.exportStatusText.textContent = 'Ready to Export';
-    this.dom.exportStepSub.textContent = 'Renders 1080p/4K directly inside your browser';
+    this.dom.exportStepSub.textContent = 'Renders high-bitrate video directly inside your browser';
     this.dom.exportProgressFill.style.width = '0%';
     this.dom.btnDownloadExport.style.display = 'none';
   },
@@ -602,7 +756,7 @@ export const App = {
 
   startVideoExport() {
     this.dom.exportStatusText.textContent = 'Rendering Frames…';
-    this.dom.exportStepSub.textContent = 'Compositing filters, beauty enhancements, burned subtitles & mixed audio';
+    this.dom.exportStepSub.textContent = 'Compositing filters, beauty enhancements, burned subtitles & audio';
     this.dom.btnDownloadExport.style.display = 'none';
 
     ExportEngine.exportVideo({
@@ -627,7 +781,7 @@ export const App = {
         this.dom.btnDownloadExport.onclick = () => {
           const a = document.createElement('a');
           a.href = url;
-          a.download = `videoforge-render-${Date.now()}.webm`;
+          a.download = `video-export-${Date.now()}.webm`;
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);

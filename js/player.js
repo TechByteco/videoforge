@@ -19,10 +19,8 @@ export const Player = {
   mediaType: 'video',
   mediaFile: null,
 
-  // Overlays
-  textOverlays: [
-    { text: "VideoForge Pro", font: "Syne", size: 38, weight: "800", color: "#e8ff47", showBadge: true, badgeColor: "rgba(0,0,0,0.8)", y: 0.15 }
-  ],
+  // Overlays (Default empty, zero promotional text)
+  textOverlays: [],
   watermark: null,
   stickers: [],
 
@@ -68,7 +66,6 @@ export const Player = {
   },
 
   setupCanvasInteractions() {
-    // Split screen drag handler
     let isDraggingSplit = false;
     this.canvas.addEventListener('mousedown', (e) => {
       if (FilterEngine.splitScreen) {
@@ -197,8 +194,9 @@ export const Player = {
   },
 
   addTextOverlay(text, options = {}) {
+    if (!text || !text.trim()) return;
     this.textOverlays.push({
-      text,
+      text: text.trim(),
       font: options.font || 'Syne',
       size: options.size || 34,
       weight: options.weight || '700',

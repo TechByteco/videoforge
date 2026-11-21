@@ -7,6 +7,7 @@ export const AudioStudio = {
   sourceNode: null,
   analyser: null,
   gainNode: null,
+  connectedElement: null,
   
   // 3-Band Equalizer nodes
   bassFilter: null,
@@ -15,8 +16,8 @@ export const AudioStudio = {
 
   // Noise Reduction DSP Nodes
   highpassFilter: null, // Cuts low-end HVAC/wind rumble (<80Hz)
-  humNotchFilter: null, // Cuts 50/60Hz electrical hum
-  deEsserFilter: null,  // Cuts harsh sibilance (6-8kHz)
+  humNotchFilter: null, // Cuts 60Hz electrical hum
+  deEsserFilter: null,  // Cuts harsh sibilance (7kHz)
   noiseReductionEnabled: false,
 
   // Reverb & Effects nodes
@@ -24,24 +25,19 @@ export const AudioStudio = {
   feedbackGain: null,
 
   // Beatmarking & Rhythm state
-  beatMarkers: [], // Array of timestamp seconds where beats occur
+  beatMarkers: [],
   isDetectingBeats: false,
 
-  // Voice Cloning & Speech Synthesis
+  // Voice Cloning Personas
   voicePersonas: [
-    { id: 'trailer', name: '🎬 Deep Movie Trailer', pitch: 0.65, rate: 0.88, bassBoost: 14, reverb: true },
-    { id: 'podcast', name: '🎙️ Studio Host', pitch: 1.0, rate: 1.0, bassBoost: 4, reverb: false },
-    { id: 'cyber', name: '🤖 Cyberpunk AI', pitch: 1.25, rate: 1.1, bassBoost: -2, reverb: true },
-    { id: 'upbeat', name: '✨ Dynamic Storyteller', pitch: 1.15, rate: 1.05, bassBoost: 0, reverb: false },
-    { id: 'whisper', name: '🌙 Soft ASMR', pitch: 0.9, rate: 0.85, bassBoost: -4, reverb: false }
+    { id: 'trailer', name: '🎬 Deep Movie Trailer Narrator', pitch: 0.70, rate: 0.90, bassBoost: 12 },
+    { id: 'podcast', name: '🎙️ Studio Podcast Host', pitch: 1.0, rate: 1.0, bassBoost: 3 },
+    { id: 'cyber', name: '🤖 Cyberpunk AI Assistant', pitch: 1.25, rate: 1.1, bassBoost: -2 },
+    { id: 'upbeat', name: '✨ Dynamic Storyteller', pitch: 1.15, rate: 1.05, bassBoost: 0 },
+    { id: 'whisper', name: '🌙 Soft ASMR Whisper', pitch: 0.85, rate: 0.85, bassBoost: -4 }
   ],
   activePersona: 'trailer',
 
-  // Audio Ducking
-  audioDuckingEnabled: false,
-  duckingAmount: 0.35, // 35% of normal volume during voiceover
-
-  // State
   volume: 1.0,
   bass: 0,
   mid: 0,
@@ -52,76 +48,74 @@ export const AudioStudio = {
   isInitialized: false,
 
   init(mediaElement) {
-    if (this.isInitialized) return;
     try {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      this.ctx = new AudioContext();
+      if (!this.ctx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        this.ctx = new AudioContext();
 
-      // Analyser for real-time spectrum & beat detection
-      this.analyser = this.ctx.createAnalyser();
-      this.analyser.fftSize = 128;
-      this.spectrumData = new Uint8Array(this.analyser.frequencyBinCount);
+        this.analyser = this.ctx.createAnalyser();
+        this.analyser.fftSize = 128;
+        this.spectrumData = new Uint8Array(this.analyser.frequencyBinCount);
 
-      // Master Gain
-      this.gainNode = this.ctx.createGain();
-      this.gainNode.gain.value = this.volume;
+        this.gainNode = this.ctx.createGain();
+        this.gainNode.gain.value = this.volume;
 
-      // Noise Reduction: 80Hz Highpass Rumble Filter
-      this.highpassFilter = this.ctx.createBiquadFilter();
-      this.highpassFilter.type = 'highpass';
-      this.highpassFilter.frequency.value = 80;
+        // Noise Reduction Filters
+        this.highpassFilter = this.ctx.createBiquadFilter();
+        this.highpassFilter.type = 'highpass';
+        this.highpassFilter.frequency.value = 80;
 
-      // Noise Reduction: 60Hz Electrical Hum Notch Filter
-      this.humNotchFilter = this.ctx.createBiquadFilter();
-      this.humNotchFilter.type = 'notch';
-      this.humNotchFilter.frequency.value = 60;
-      this.humNotchFilter.Q.value = 10;
+        this.humNotchFilter = this.ctx.createBiquadFilter();
+        this.humNotchFilter.type = 'notch';
+        this.humNotchFilter.frequency.value = 60;
+        this.humNotchFilter.Q.value = 10;
 
-      // Noise Reduction: De-esser (7kHz notch)
-      this.deEsserFilter = this.ctx.createBiquadFilter();
-      this.deEsserFilter.type = 'peaking';
-      this.deEsserFilter.frequency.value = 7000;
-      this.deEsserFilter.gain.value = -6;
+        this.deEsserFilter = this.ctx.createBiquadFilter();
+        this.deEsserFilter.type = 'peaking';
+        this.deEsserFilter.frequency.value = 7000;
+        this.deEsserFilter.gain.value = -6;
 
-      // 3-Band EQ
-      this.bassFilter = this.ctx.createBiquadFilter();
-      this.bassFilter.type = 'lowshelf';
-      this.bassFilter.frequency.value = 150;
-      this.bassFilter.gain.value = this.bass;
+        // 3-Band EQ
+        this.bassFilter = this.ctx.createBiquadFilter();
+        this.bassFilter.type = 'lowshelf';
+        this.bassFilter.frequency.value = 150;
+        this.bassFilter.gain.value = this.bass;
 
-      this.midFilter = this.ctx.createBiquadFilter();
-      this.midFilter.type = 'peaking';
-      this.midFilter.frequency.value = 1000;
-      this.midFilter.Q.value = 1.0;
-      this.midFilter.gain.value = this.mid;
+        this.midFilter = this.ctx.createBiquadFilter();
+        this.midFilter.type = 'peaking';
+        this.midFilter.frequency.value = 1000;
+        this.midFilter.Q.value = 1.0;
+        this.midFilter.gain.value = this.mid;
 
-      this.trebleFilter = this.ctx.createBiquadFilter();
-      this.trebleFilter.type = 'highshelf';
-      this.trebleFilter.frequency.value = 4000;
-      this.trebleFilter.gain.value = this.treble;
+        this.trebleFilter = this.ctx.createBiquadFilter();
+        this.trebleFilter.type = 'highshelf';
+        this.trebleFilter.frequency.value = 4000;
+        this.trebleFilter.gain.value = this.treble;
 
-      // Reverb / Echo
-      this.delayNode = this.ctx.createDelay();
-      this.delayNode.delayTime.value = 0.25;
-      this.feedbackGain = this.ctx.createGain();
-      this.feedbackGain.gain.value = 0.35;
-      this.delayNode.connect(this.feedbackGain);
-      this.feedbackGain.connect(this.delayNode);
+        // Reverb / Echo
+        this.delayNode = this.ctx.createDelay();
+        this.delayNode.delayTime.value = 0.25;
+        this.feedbackGain = this.ctx.createGain();
+        this.feedbackGain.gain.value = 0.35;
+        this.delayNode.connect(this.feedbackGain);
+        this.feedbackGain.connect(this.delayNode);
+      }
 
-      // Connect DSP chain
-      if (mediaElement) {
+      // Connect source node only once per media element
+      if (mediaElement && this.connectedElement !== mediaElement) {
         this.sourceNode = this.ctx.createMediaElementSource(mediaElement);
+        this.connectedElement = mediaElement;
         this.rebuildAudioChain();
       }
 
       this.isInitialized = true;
     } catch (e) {
-      console.warn("AudioContext setup warning:", e);
+      console.warn("AudioContext init note:", e);
     }
   },
 
   rebuildAudioChain() {
-    if (!this.sourceNode) return;
+    if (!this.sourceNode || !this.ctx) return;
     try {
       this.sourceNode.disconnect();
       this.highpassFilter.disconnect();
@@ -135,14 +129,13 @@ export const AudioStudio = {
 
     let lastNode = this.sourceNode;
 
-    // Optional Noise Reduction
     if (this.noiseReductionEnabled) {
       lastNode.connect(this.highpassFilter);
       this.highpassFilter.connect(this.humNotchFilter);
-      lastNode = this.humNotchFilter;
+      this.humNotchFilter.connect(this.deEsserFilter);
+      lastNode = this.deEsserFilter;
     }
 
-    // EQ Chain
     lastNode.connect(this.bassFilter);
     this.bassFilter.connect(this.midFilter);
     this.midFilter.connect(this.trebleFilter);
@@ -223,12 +216,11 @@ export const AudioStudio = {
 
   /**
    * Automatic Beat & Rhythm Transient Detector
-   * Analyzes audio track buffer and detects sudden energy peaks
    */
   async detectBeatsFromBuffer(audioBuffer) {
     const rawData = audioBuffer.getChannelData(0);
     const sampleRate = audioBuffer.sampleRate;
-    const step = Math.floor(sampleRate * 0.05); // 50ms windows
+    const step = Math.floor(sampleRate * 0.04);
     const peaks = [];
     let prevEnergy = 0;
 
@@ -239,10 +231,9 @@ export const AudioStudio = {
       }
       const energy = Math.sqrt(sum / step);
 
-      // Detect prominent sudden energy jump (beat transient)
-      if (energy > 0.12 && energy > prevEnergy * 1.5) {
+      if (energy > 0.10 && energy > prevEnergy * 1.45) {
         const timeSec = i / sampleRate;
-        if (peaks.length === 0 || timeSec - peaks[peaks.length - 1] > 0.28) {
+        if (peaks.length === 0 || timeSec - peaks[peaks.length - 1] > 0.25) {
           peaks.push(parseFloat(timeSec.toFixed(2)));
         }
       }
@@ -254,8 +245,7 @@ export const AudioStudio = {
   },
 
   /**
-   * AI Voice Cloning & Speech Synthesis Generator
-   * Generates vocal audio tracks from text script using persona formant parameters
+   * Clean Voice Cloning / TTS Generator (No Promotional Text)
    */
   generateVoiceClone(text, personaId = 'trailer', onComplete) {
     if (!window.speechSynthesis) {
@@ -270,7 +260,6 @@ export const AudioStudio = {
     utterance.pitch = persona.pitch;
     utterance.rate = persona.rate;
 
-    // Pick best English voice available
     const voices = window.speechSynthesis.getVoices();
     const preferredVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Neural'))) || voices[0];
     if (preferredVoice) utterance.voice = preferredVoice;
@@ -286,9 +275,6 @@ export const AudioStudio = {
     window.speechSynthesis.speak(utterance);
   },
 
-  /**
-   * Procedural Audio Synthesizer: Generates Royalty-Free BGM & Sound FX on the fly
-   */
   playSynthesizedSFX(type) {
     this.resume();
     const ctx = this.ctx || new (window.AudioContext || window.webkitAudioContext)();
@@ -361,7 +347,7 @@ export const AudioStudio = {
     
     const a = document.createElement('a');
     a.href = url;
-    a.download = `videoforge-audio-${Date.now()}.wav`;
+    a.download = `audio-track-${Date.now()}.wav`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -370,7 +356,7 @@ export const AudioStudio = {
   audioBufferToWav(buffer) {
     const numChannels = buffer.numberOfChannels;
     const sampleRate = buffer.sampleRate;
-    const format = 1; // PCM
+    const format = 1;
     const bitDepth = 16;
     
     let interleaved;
@@ -397,7 +383,7 @@ export const AudioStudio = {
     view.setUint16(20, format, true);
     view.setUint16(22, numChannels, true);
     view.setUint32(24, sampleRate, true);
-    view.setUint28 ? view.setUint32(28, byteRate, true) : view.setUint32(28, byteRate, true);
+    view.setUint32(28, byteRate, true);
     view.setUint16(32, blockAlign, true);
     view.setUint16(34, bitDepth, true);
     this.writeString(view, 36, 'data');

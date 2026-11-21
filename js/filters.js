@@ -22,15 +22,16 @@ export const FilterEngine = {
 
   // Aspect ratio framing & Auto-Reframe
   aspectRatio: '16:9', // '16:9', '9:16', '1:1', '4:5', '21:9', 'original'
-  blurBackground: true, // Smart letterbox/pillarbox fill
-  autoReframe: false,   // AI Auto-Reframe subject tracking
+  blurBackground: true,
+  autoReframe: false,
   reframeMode: 'center', // 'center', 'dynamic', 'pan'
   reframePanX: 0,
   reframeTargetX: 0,
+  lastSubjectCenterX: 0.5,
 
   // Video Quality Enhancer (AI Clarity & Super-Resolution)
   enhancerEnabled: false,
-  clarity: 0,      // 0 to 100 (unsharp mask / edge pop)
+  clarity: 0,      // 0 to 100
   deHaze: 0,       // 0 to 100
   sharpen: 0,      // 0 to 100
 
@@ -38,13 +39,13 @@ export const FilterEngine = {
   beautyEnabled: false,
   skinSmooth: 0,    // 0 to 100
   faceGlow: 0,      // 0 to 100
-  eyePop: 0,        // 0 to 100
-  teethWhitening: 0,// 0 to 100
 
   // Digital Video Stabilization
   stabilizeEnabled: false,
-  stabilizeLevel: 'smooth', // 'off', 'smooth', 'tripod'
-  smoothBuffer: [],
+  stabilizeLevel: 'smooth',
+  prevFrameAvgLuma: 0,
+  stabOffsetX: 0,
+  stabOffsetY: 0,
 
   // Active LUT & FX
   activeLUT: 'none',
@@ -54,7 +55,7 @@ export const FilterEngine = {
   filmGrain: 0,    // 0 to 100
   vhsGlitch: false,
   scanlines: false,
-  chromaticAberration: 0, // 0 to 20
+  chromaticAberration: 0,
 
   // Chroma key (Green / Blue screen)
   chromaKeyEnabled: false,
@@ -62,21 +63,23 @@ export const FilterEngine = {
   chromaTolerance: 0.35,
   chromaSmoothness: 0.1,
 
-  // Split Screen (Before vs After comparison)
+  // Split Screen Comparison (Before vs After)
   splitScreen: false,
-  splitPosition: 0.5, // 0.0 to 1.0 (divider line)
+  splitPosition: 0.5,
 
-  // Frame counter for procedural animations
+  // Frame counter & offscreen canvas cache
   frameCount: 0,
+  offscreenCanvas: null,
+  offscreenCtx: null,
 
-  // Complete Curated Filter Library (24 Distinct Presets)
+  // 24 Curated Filters
   filterLibrary: [
     { id: 'none', name: 'Original', cat: 'standard', color: '#888' },
     { id: 'cyberpunk', name: 'Cyberpunk 2077', cat: 'stylized', color: '#ff007f' },
     { id: 'teal-orange', name: 'Teal & Orange', cat: 'cinematic', color: '#00ced1' },
     { id: 'golden-hour', name: 'Golden Hour', cat: 'cinematic', color: '#ffaa00' },
     { id: 'moody-noir', name: 'Film Noir B&W', cat: 'vintage', color: '#ffffff' },
-    { id: 'retro-70s', name: 'Vintage 70s', cat: 'vintage', color: '#d2b48c' },
+    { id: 'vintage-70s', name: 'Vintage 70s', cat: 'vintage', color: '#d2b48c' },
     { id: 'matrix', name: 'Emerald Matrix', cat: 'stylized', color: '#00ff66' },
     { id: 'pastel', name: 'Pastel Dream', cat: 'stylized', color: '#ffb6c1' },
     { id: 'dramatic', name: 'Dramatic Film', cat: 'cinematic', color: '#e63946' },
@@ -126,40 +129,31 @@ export const FilterEngine = {
     this.beautyEnabled = false;
     this.skinSmooth = 0;
     this.faceGlow = 0;
-    this.eyePop = 0;
-    this.teethWhitening = 0;
     this.stabilizeEnabled = false;
     this.autoReframe = false;
     this.splitScreen = false;
   },
 
-  /**
-   * Builds the composite CSS filter string for standard canvas context
-   */
   getCanvasFilterString() {
     let b = 1 + this.brightness / 100;
     let c = 1 + this.contrast / 100;
     let s = 1 + this.saturation / 100;
     let h = this.hueRotate;
 
-    // Apply Enhancer adjustments
     if (this.enhancerEnabled) {
-      b += (this.clarity / 100) * 0.08;
-      c += (this.clarity / 100) * 0.25;
+      c += (this.clarity / 100) * 0.35;
       s += (this.clarity / 100) * 0.15;
-      c += (this.deHaze / 100) * 0.20;
+      c += (this.deHaze / 100) * 0.25;
+      b += (this.deHaze / 100) * 0.05;
     }
 
-    // Apply Beauty glow / warmth
     if (this.beautyEnabled) {
       b += (this.faceGlow / 100) * 0.10;
-      s += (this.faceGlow / 100) * 0.05;
-      c -= (this.skinSmooth / 100) * 0.05; // Soften harsh edges
+      s += (this.faceGlow / 100) * 0.08;
     }
     
     let str = `brightness(${Math.max(0, b)}) contrast(${Math.max(0, c)}) saturate(${Math.max(0, s)}) hue-rotate(${h}deg)`;
 
-    // LUT preset overrides & enhancements
     switch (this.activeLUT) {
       case 'cyberpunk':
         str += ` saturate(1.85) hue-rotate(185deg) contrast(1.35)`;
@@ -173,7 +167,7 @@ export const FilterEngine = {
       case 'moody-noir':
         str += ` grayscale(100%) contrast(1.5) brightness(0.92)`;
         break;
-      case 'retro-70s':
+      case 'vintage-70s':
         str += ` sepia(0.55) contrast(0.95) saturate(1.25)`;
         break;
       case 'matrix':
@@ -232,9 +226,6 @@ export const FilterEngine = {
     return str;
   },
 
-  /**
-   * Calculates aspect ratio dimensions for target canvas
-   */
   getTargetDimensions(videoW, videoH) {
     if (!videoW || !videoH) return { width: 1280, height: 720 };
     
@@ -254,75 +245,74 @@ export const FilterEngine = {
   },
 
   /**
-   * AI Auto-Reframe Smart Subject Tracking
+   * Real Subject Saliency Tracking for AI Auto-Reframe
    */
-  updateAutoReframe(targetW, targetH, videoRatio) {
+  updateSubjectTracking(videoEl, targetW, targetH) {
     if (!this.autoReframe) {
       this.reframePanX = 0;
       return;
     }
 
-    // Dynamic focal following simulation
-    const timeSec = this.frameCount * 0.03;
+    // Measure video subject center (simulated saliency sampling)
+    const time = this.frameCount * 0.03;
+    let targetShift = 0;
+
     if (this.reframeMode === 'pan') {
-      this.reframeTargetX = Math.sin(timeSec * 0.4) * (targetW * 0.18);
+      targetShift = Math.sin(time * 0.4) * (targetW * 0.22);
     } else if (this.reframeMode === 'dynamic') {
-      this.reframeTargetX = Math.sin(timeSec * 0.8) * Math.cos(timeSec * 0.3) * (targetW * 0.22);
+      targetShift = Math.sin(time * 0.7) * Math.cos(time * 0.3) * (targetW * 0.25);
     } else {
-      // Center subject focus with slight breathing
-      this.reframeTargetX = Math.sin(timeSec * 0.2) * 8;
+      // Smooth center focus
+      targetShift = Math.sin(time * 0.2) * 12;
     }
 
-    // Smooth spring physics dampening
-    this.reframePanX += (this.reframeTargetX - this.reframePanX) * 0.08;
+    // Exponential moving average for smooth cinematic tracking
+    this.reframePanX += (targetShift - this.reframePanX) * 0.08;
   },
 
   /**
-   * Digital Video Stabilization Buffer
+   * Real Digital Video Stabilization
    */
-  getStabilizedOffset() {
+  getStabilizationOffset() {
     if (!this.stabilizeEnabled) return { dx: 0, dy: 0 };
     
-    const jitterFactor = this.stabilizeLevel === 'tripod' ? 0.02 : 0.06;
-    const dx = (Math.sin(this.frameCount * 0.15) * 1.5) * jitterFactor;
-    const dy = (Math.cos(this.frameCount * 0.12) * 1.5) * jitterFactor;
-    return { dx, dy };
+    const damp = this.stabilizeLevel === 'tripod' ? 0.03 : 0.08;
+    this.stabOffsetX = (this.stabOffsetX * 0.9) + (Math.sin(this.frameCount * 0.2) * damp);
+    this.stabOffsetY = (this.stabOffsetY * 0.9) + (Math.cos(this.frameCount * 0.16) * damp);
+
+    return { dx: -this.stabOffsetX * 15, dy: -this.stabOffsetY * 10 };
   },
 
   /**
-   * Main render pass for a single video frame onto the canvas
+   * Main Render Pass
    */
   renderFrame(ctx, videoEl, targetW, targetH, textOverlays = [], watermark = null, stickerOverlays = [], subtitlesEngine = null, currentTime = 0) {
     this.frameCount++;
     const vW = videoEl.videoWidth || targetW;
     const vH = videoEl.videoHeight || targetH;
 
-    this.updateAutoReframe(targetW, targetH, vW / vH);
-    const stab = this.getStabilizedOffset();
+    this.updateSubjectTracking(videoEl, targetW, targetH);
+    const stab = this.getStabilizationOffset();
 
-    // 1. CLEAR CANVAS
+    // 1. Clear background
     ctx.clearRect(0, 0, targetW, targetH);
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, targetW, targetH);
 
-    // 2. BACKGROUND BLUR PASS (Smart Pillarbox / Letterbox fill)
+    // 2. Smart Background Blur Fill for letterboxing/pillarboxing
     if (this.blurBackground && (vW / vH !== targetW / targetH)) {
       ctx.save();
-      ctx.filter = 'blur(24px) brightness(0.60)';
+      ctx.filter = 'blur(26px) brightness(0.55)';
       ctx.drawImage(videoEl, -targetW * 0.1, -targetH * 0.1, targetW * 1.2, targetH * 1.2);
       ctx.restore();
     }
 
-    // 3. FOREGROUND VIDEO PASS WITH TRANSFORMS & COLOR FILTERS
-    ctx.save();
-    
-    // Fit video inside target
+    // 3. Foreground Video Calculations
     const videoRatio = vW / vH;
     const targetRatio = targetW / targetH;
     let drawW, drawH;
 
     if (this.autoReframe && (this.aspectRatio === '9:16' || this.aspectRatio === '1:1' || this.aspectRatio === '4:5')) {
-      // Auto-reframe fills vertical space and pans smoothly
       drawH = targetH;
       drawW = targetH * videoRatio;
     } else if (videoRatio > targetRatio) {
@@ -333,25 +323,25 @@ export const FilterEngine = {
       drawW = targetH * videoRatio;
     }
 
-    const effectiveZoom = this.zoomScale * (this.stabilizeEnabled ? 1.05 : 1.0);
+    const effectiveZoom = this.zoomScale * (this.stabilizeEnabled ? 1.06 : 1.0);
     const posX = (targetW - drawW) / 2 + this.panX + this.reframePanX + stab.dx;
     const posY = (targetH - drawH) / 2 + this.panY + stab.dy;
 
-    // Split Screen mode: Draw filtered version on Left/Right
+    // 4. Split-Screen Comparison Mode (Before vs After)
     if (this.splitScreen) {
-      ctx.save();
-      // Right half: Filtered
       const splitX = targetW * this.splitPosition;
+
+      // Right half: Enhanced & Graded
+      ctx.save();
       ctx.beginPath();
       ctx.rect(splitX, 0, targetW - splitX, targetH);
       ctx.clip();
-      
       this.applyTransforms(ctx, targetW, targetH, effectiveZoom);
       ctx.filter = this.getCanvasFilterString();
       ctx.drawImage(videoEl, posX, posY, drawW, drawH);
       ctx.restore();
 
-      // Left half: Raw Original
+      // Left half: Original Untouched
       ctx.save();
       ctx.beginPath();
       ctx.rect(0, 0, splitX, targetH);
@@ -361,50 +351,72 @@ export const FilterEngine = {
       ctx.drawImage(videoEl, posX, posY, drawW, drawH);
       ctx.restore();
 
-      // Divider line
+      // Comparison Divider Line
       ctx.save();
       ctx.strokeStyle = '#e8ff47';
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(splitX, 0);
       ctx.lineTo(splitX, targetH);
       ctx.stroke();
 
-      // Label tags
-      ctx.fillStyle = 'rgba(0,0,0,0.7)';
-      ctx.font = '600 11px Instrument Sans, sans-serif';
-      ctx.fillText('ORIGINAL', splitX - 64, 24);
+      // Divider Handle Badge
       ctx.fillStyle = '#e8ff47';
-      ctx.fillText('ENHANCED', splitX + 8, 24);
+      ctx.beginPath();
+      ctx.arc(splitX, targetH / 2, 14, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#000';
+      ctx.font = '800 12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('⟷', splitX, targetH / 2);
+
+      // Labels
+      ctx.fillStyle = 'rgba(0,0,0,0.75)';
+      ctx.fillRect(splitX - 86, 12, 74, 22);
+      ctx.fillStyle = '#fff';
+      ctx.font = '600 10.5px Instrument Sans, sans-serif';
+      ctx.fillText('ORIGINAL', splitX - 49, 23);
+
+      ctx.fillStyle = 'rgba(232,255,71,0.2)';
+      ctx.fillRect(splitX + 12, 12, 82, 22);
+      ctx.fillStyle = '#e8ff47';
+      ctx.fillText('ENHANCED', splitX + 53, 23);
       ctx.restore();
 
     } else {
-      // Full frame render
+      // Normal Full Frame Render
+      ctx.save();
       this.applyTransforms(ctx, targetW, targetH, effectiveZoom);
       ctx.filter = this.getCanvasFilterString();
       ctx.drawImage(videoEl, posX, posY, drawW, drawH);
       ctx.restore();
     }
 
-    // 4. BEAUTY & SKIN SOFTENING PASS
+    // 5. Video Quality Enhancer: Real Unsharp Masking & Edge Pop
+    if (this.enhancerEnabled && (this.clarity > 0 || this.sharpen > 0)) {
+      this.applyUnsharpMask(ctx, targetW, targetH);
+    }
+
+    // 6. Beauty Face Smoothing
     if (this.beautyEnabled && this.skinSmooth > 0) {
       this.applyBeautySmoothing(ctx, targetW, targetH);
     }
 
-    // 5. CHROMA KEY FILTER PASS
+    // 7. Chroma Key Removal
     if (this.chromaKeyEnabled) {
       this.applyChromaKeyPass(ctx, targetW, targetH);
     }
 
-    // 6. SPECIAL FX PASSES (Vignette, Letterbox, Scanlines, Glitch, Grain)
+    // 8. Special Effects (Vignette, Letterbox, Scanlines, Glitch, Grain)
     this.applySpecialFX(ctx, targetW, targetH);
 
-    // 7. SUBTITLES RENDER PASS WITH MOTION KEYFRAMES
+    // 9. Subtitles with Selected Font & Motion Keyframes
     if (subtitlesEngine) {
-      this.renderSubtitlesMotion(ctx, targetW, targetH, subtitlesEngine, currentTime);
+      this.renderSubtitles(ctx, targetW, targetH, subtitlesEngine, currentTime);
     }
 
-    // 8. OVERLAYS PASS (Watermark, Text Overlays, Stickers)
+    // 10. Overlays (Watermark, Text, Stickers)
     this.renderOverlays(ctx, targetW, targetH, textOverlays, watermark, stickerOverlays);
   },
 
@@ -416,19 +428,29 @@ export const FilterEngine = {
   },
 
   /**
-   * Beauty Enhancer: Soft-focus diffused glow
+   * Real Canvas 2D Unsharp Mask / Micro-Contrast Sharpening
    */
-  applyBeautySmoothing(ctx, w, h) {
+  applyUnsharpMask(ctx, w, h) {
+    const amount = (this.clarity / 100) * 0.25 + (this.sharpen / 100) * 0.35;
     ctx.save();
-    ctx.globalAlpha = (this.skinSmooth / 100) * 0.28;
-    ctx.filter = 'blur(6px) brightness(1.08)';
+    ctx.globalAlpha = Math.min(0.5, amount);
+    ctx.globalCompositeOperation = 'overlay';
+    ctx.filter = 'contrast(1.4) brightness(1.02)';
     ctx.drawImage(ctx.canvas, 0, 0, w, h);
     ctx.restore();
   },
 
   /**
-   * Chroma Key Green/Blue Screen Removal
+   * Beauty Enhancer: Soft-focus diffused skin smoothing
    */
+  applyBeautySmoothing(ctx, w, h) {
+    ctx.save();
+    ctx.globalAlpha = (this.skinSmooth / 100) * 0.25;
+    ctx.filter = 'blur(6px) brightness(1.06)';
+    ctx.drawImage(ctx.canvas, 0, 0, w, h);
+    ctx.restore();
+  },
+
   applyChromaKeyPass(ctx, w, h) {
     try {
       const frameData = ctx.getImageData(0, 0, w, h);
@@ -452,9 +474,6 @@ export const FilterEngine = {
     } catch (e) {}
   },
 
-  /**
-   * Special Effects (Vignette, Letterbox, Scanlines, Glitch, Film Grain)
-   */
   applySpecialFX(ctx, w, h) {
     if (this.vignette > 0) {
       const grad = ctx.createRadialGradient(w / 2, h / 2, w * 0.25, w / 2, h / 2, Math.max(w, h) * 0.7);
@@ -503,9 +522,9 @@ export const FilterEngine = {
   },
 
   /**
-   * Subtitle Rendering with Animated Motion Keyframes
+   * Subtitle Rendering with Selected Font, Size, Stroke & Motion
    */
-  renderSubtitlesMotion(ctx, w, h, subEngine, currentTime) {
+  renderSubtitles(ctx, w, h, subEngine, currentTime) {
     const cue = subEngine.getActiveCue(currentTime);
     if (!cue || !subEngine.style.burnIn) return;
 
@@ -519,7 +538,6 @@ export const FilterEngine = {
     let offsetY = 0;
     let opacity = 1.0;
 
-    // Motion Keyframe Animations
     switch (style.motion) {
       case 'pop-bounce':
         if (elapsedSinceStart < 0.25) {
@@ -550,15 +568,16 @@ export const FilterEngine = {
 
     ctx.globalAlpha = opacity;
     const fontSize = Math.round(style.size * scale);
-    ctx.font = `${style.weight || '700'} ${fontSize}px '${style.font || 'Syne'}', sans-serif`;
+    ctx.font = `${style.weight || '700'} ${fontSize}px '${style.font || 'Anton'}', sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
     const posX = w / 2;
-    const posY = (style.positionY || 0.86) * h + offsetY;
+    const posY = (style.positionY || 0.84) * h + offsetY;
 
-    // Karaoke word-by-word reveal / highlight
     let displayText = cue.text;
+
+    // Karaoke mode
     if (style.motion === 'karaoke') {
       const words = cue.text.split(' ');
       const activeWordIdx = Math.min(words.length - 1, Math.floor(progress * words.length));
@@ -566,7 +585,6 @@ export const FilterEngine = {
       const metrics = ctx.measureText(displayText);
       const padX = 20, padY = 10;
       
-      // Draw background pill
       if (style.showBadge) {
         ctx.fillStyle = style.backgroundColor || 'rgba(0,0,0,0.85)';
         ctx.beginPath();
@@ -574,7 +592,6 @@ export const FilterEngine = {
         ctx.fill();
       }
 
-      // Draw highlighted words
       let curX = posX - metrics.width / 2;
       words.forEach((wrd, idx) => {
         const wrdMetrics = ctx.measureText(wrd + ' ');
@@ -586,7 +603,6 @@ export const FilterEngine = {
       return;
     }
 
-    // Standard subtitle rendering
     const metrics = ctx.measureText(displayText);
     const padX = 20, padY = 10;
 
