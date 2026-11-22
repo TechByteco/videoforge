@@ -16,10 +16,16 @@ export const Player = {
   // Media State
   isLoaded: false,
   isPlaying: false,
-  mediaType: 'video',
+  mediaType: 'video', // 'video' | 'image'
   mediaFile: null,
+  staticImage: null,
 
-  // Overlays (Default empty, zero promotional text)
+  // Image playback simulation
+  imageCurrentTime: 0,
+  imageLastTimestamp: 0,
+  imageAnimId: null,
+
+  // Overlays
   textOverlays: [],
   watermark: null,
   stickers: [],
@@ -51,11 +57,13 @@ export const Player = {
     });
 
     this.video.addEventListener('timeupdate', () => {
-      Timeline.setTime(this.video.currentTime);
-      
-      const activeCue = SubtitlesManager.getActiveCue(this.video.currentTime);
-      if (this.onSubtitleUpdate) {
-        this.onSubtitleUpdate(activeCue ? activeCue.text : null);
+      if (this.mediaType === 'video') {
+        Timeline.setTime(this.video.currentTime);
+        
+        const activeCue = SubtitlesManager.getActiveCue(this.video.currentTime);
+        if (this.onSubtitleUpdate) {
+          this.onSubtitleUpdate(activeCue ? activeCue.text : null);
+        }
       }
     });
 
@@ -67,21 +75,34 @@ export const Player = {
 
   setupCanvasInteractions() {
     let isDraggingSplit = false;
+    let isDraggingSub = false;
+
     this.canvas.addEventListener('mousedown', (e) => {
+      const rect = this.canvas.getBoundingClientRect();
+      const mouseYRel = (e.clientY - rect.top) / rect.height;
+
       if (FilterEngine.splitScreen) {
         isDraggingSplit = true;
         this.updateSplitPos(e);
+      } else if (e.shiftKey || Math.abs(mouseYRel - (SubtitlesManager.style.positionY || 0.84)) < 0.12) {
+        isDraggingSub = true;
+        SubtitlesManager.style.positionY = Math.max(0.1, Math.min(0.92, mouseYRel));
       }
     });
 
     window.addEventListener('mousemove', (e) => {
       if (isDraggingSplit && FilterEngine.splitScreen) {
         this.updateSplitPos(e);
+      } else if (isDraggingSub) {
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseYRel = (e.clientY - rect.top) / rect.height;
+        SubtitlesManager.style.positionY = Math.max(0.1, Math.min(0.92, mouseYRel));
       }
     });
 
     window.addEventListener('mouseup', () => {
       isDraggingSplit = false;
+      isDraggingSub = false;
     });
   },
 
@@ -98,14 +119,17 @@ export const Player = {
 
     if (type.startsWith('image/')) {
       this.mediaType = 'image';
+      this.imageCurrentTime = 0;
       const img = new Image();
       img.onload = () => {
+        this.video.pause();
         this.video.src = '';
         this.canvas.width = img.width || 1280;
         this.canvas.height = img.height || 720;
-        Timeline.setDuration(10);
+        Timeline.setDuration(12);
         this.isLoaded = true;
         this.staticImage = img;
+        if (this.onMetadataLoaded) this.onMetadataLoaded(12, this.canvas.width, this.canvas.height);
       };
       img.src = url;
     } else {
@@ -157,6 +181,35 @@ export const Player = {
     if (!this.isLoaded) return;
     AudioStudio.resume();
 
+    if (this.mediaType === 'image') {
+      this.isPlaying = !this.isPlaying;
+      if (this.isPlaying) {
+        this.imageLastTimestamp = performance.now();
+        const step = (now) => {
+          if (!this.isPlaying || this.mediaType !== 'image') return;
+          const dt = (now - this.imageLastTimestamp) / 1000;
+          this.imageLastTimestamp = now;
+          this.imageCurrentTime += dt;
+          if (this.imageCurrentTime >= Timeline.duration) {
+            this.imageCurrentTime = Timeline.isLooping ? 0 : Timeline.duration;
+            if (!Timeline.isLooping) {
+              this.isPlaying = false;
+              if (this.onPlayStateChange) this.onPlayStateChange(false);
+              return;
+            }
+          }
+          Timeline.setTime(this.imageCurrentTime);
+          this.imageAnimId = requestAnimationFrame(step);
+        };
+        this.imageAnimId = requestAnimationFrame(step);
+      } else {
+        cancelAnimationFrame(this.imageAnimId);
+      }
+      if (this.onPlayStateChange) this.onPlayStateChange(this.isPlaying);
+      return;
+    }
+
+    // Video playback
     if (this.video.paused) {
       this.video.play();
       this.isPlaying = true;
@@ -169,7 +222,16 @@ export const Player = {
 
   seek(seconds) {
     if (!this.isLoaded) return;
+    if (this.mediaType === 'image') {
+      this.imageCurrentTime = Math.max(0, Math.min(seconds, Timeline.duration || 12));
+      Timeline.setTime(this.imageCurrentTime);
+      return;
+    }
     this.video.currentTime = Math.max(0, Math.min(seconds, this.video.duration));
+  },
+
+  getCurrentTime() {
+    return this.mediaType === 'image' ? this.imageCurrentTime : (this.video?.currentTime || 0);
   },
 
   setSpeed(rate) {
@@ -188,14 +250,31 @@ export const Player = {
   toggleMute() {
     if (this.video) {
       this.video.muted = !this.video.muted;
-      return this.video.muted;
+      const isMuted = this.video.muted;
+      const btn = document.getElementById('btnMute');
+      if (btn) {
+        btn.textContent = isMuted ? 'Unmute' : 'Mute';
+        btn.classList.toggle('active', isMuted);
+      }
+      return isMuted;
     }
     return false;
+  },
+
+  toggleFullscreen() {
+    const stage = document.getElementById('stageContainer') || this.canvas;
+    if (!document.fullscreenElement) {
+      if (stage.requestFullscreen) stage.requestFullscreen();
+      else if (stage.webkitRequestFullscreen) stage.webkitRequestFullscreen();
+    } else {
+      if (document.exitFullscreen) document.exitFullscreen();
+    }
   },
 
   addTextOverlay(text, options = {}) {
     if (!text || !text.trim()) return;
     this.textOverlays.push({
+      id: 'txt_' + Date.now() + '_' + Math.floor(Math.random() * 100),
       text: text.trim(),
       font: options.font || 'Syne',
       size: options.size || 34,
@@ -206,6 +285,14 @@ export const Player = {
       x: options.x || 0.5,
       y: options.y || 0.8
     });
+  },
+
+  deleteTextOverlay(id) {
+    this.textOverlays = this.textOverlays.filter(t => t.id !== id);
+  },
+
+  clearTextOverlays() {
+    this.textOverlays = [];
   },
 
   setWatermark(img, position = 'bottom-right', opacity = 0.85, scale = 0.18) {
@@ -220,6 +307,7 @@ export const Player = {
     const loop = () => {
       if (this.isLoaded && this.canvas && this.ctx) {
         const source = this.staticImage || this.video;
+        const curTime = this.getCurrentTime();
         FilterEngine.renderFrame(
           this.ctx,
           source,
@@ -229,7 +317,7 @@ export const Player = {
           this.watermark,
           this.stickers,
           SubtitlesManager,
-          this.video.currentTime || 0
+          curTime
         );
       }
       this.animationFrameId = requestAnimationFrame(loop);

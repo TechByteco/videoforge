@@ -301,7 +301,7 @@ export const App = {
 
   bindKeyboardShortcuts() {
     window.addEventListener('keydown', (e) => {
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+      if (e.target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
 
       switch (e.code) {
         case 'Space':
@@ -493,6 +493,33 @@ export const App = {
     this.toast('Stopped live mic transcription');
   },
 
+  renderTextOverlaysList() {
+    const container = document.getElementById('activeOverlaysList');
+    if (!container) return;
+    container.innerHTML = '';
+    if (!Player.textOverlays.length) return;
+
+    Player.textOverlays.forEach(ov => {
+      const item = document.createElement('div');
+      item.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:var(--sur2);border-radius:6px;font-size:11px;border:1px solid var(--bdr)';
+      item.innerHTML = `
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px">🏷️ ${ov.text}</span>
+        <button style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:12px" title="Delete overlay">✕</button>
+      `;
+      item.querySelector('button').addEventListener('click', () => {
+        Player.deleteTextOverlay(ov.id);
+        this.renderTextOverlaysList();
+        this.toast('Overlay removed');
+      });
+      container.appendChild(item);
+    });
+  },
+
+  deleteOverlay(id) {
+    Player.deleteTextOverlay(id);
+    this.renderTextOverlaysList();
+  },
+
   addSubtitleAtPlayhead() {
     const input = document.getElementById('newSubtitleInput');
     const text = input ? input.value : '';
@@ -508,6 +535,12 @@ export const App = {
     if (input) input.value = '';
     this.renderSubtitlesList();
     this.toast(`Added subtitle at ${Timeline.formatTimecode(cur)}`);
+  },
+
+  nudgeSubtitles(deltaSec) {
+    SubtitlesManager.nudgeCues(deltaSec);
+    this.renderSubtitlesList();
+    this.toast(`Shifted subtitles by ${deltaSec > 0 ? '+' : ''}${deltaSec}s`);
   },
 
   clearAllSubtitles() {
@@ -535,13 +568,23 @@ export const App = {
     const persona = document.getElementById('voicePersonaSelect')?.value || 'trailer';
     
     this.toast(`🎙️ Synthesizing Voiceover [${persona.toUpperCase()}]…`);
+    
+    if (text.trim()) {
+      const cur = Timeline.currentTime || 0;
+      const wordCount = text.trim().split(/\s+/).length;
+      const durSec = Math.max(2.0, wordCount * 0.45);
+      SubtitlesManager.addCue(cur, cur + durSec, text.trim());
+      this.renderSubtitlesList();
+    }
+
     AudioStudio.generateVoiceClone(text, persona, () => {
-      this.toast('✨ Voiceover Synthesized & Synced!');
+      this.toast('✨ Voiceover Synthesized & Synced into Timeline!');
       this.closeModal('modalVoiceClone');
     });
   },
 
   renderSubtitlesList() {
+    Timeline.renderSubtitleCues(SubtitlesManager.cues);
     if (!this.dom.subtitlesList) return;
     this.dom.subtitlesList.innerHTML = '';
 
@@ -584,7 +627,39 @@ export const App = {
     });
   },
 
+  _autoSaveTimer: null,
+  triggerAutoSave() {
+    clearTimeout(this._autoSaveTimer);
+    this._autoSaveTimer = setTimeout(() => {
+      if (Player.isLoaded) {
+        Storage.saveProject({
+          id: Hub.activeProjectId || 'proj_autosave_latest',
+          title: 'Current Working Project',
+          aspectRatio: FilterEngine.aspectRatio || '16:9',
+          duration: Timeline.duration || 12,
+          cuesCount: SubtitlesManager.cues.length,
+          updatedAt: Date.now(),
+          projectData: {
+            filters: {
+              activeLUT: FilterEngine.activeLUT,
+              brightness: FilterEngine.brightness,
+              contrast: FilterEngine.contrast,
+              saturation: FilterEngine.saturation,
+              aspectRatio: FilterEngine.aspectRatio
+            },
+            subtitles: {
+              style: { ...SubtitlesManager.style },
+              cues: JSON.parse(JSON.stringify(SubtitlesManager.cues))
+            },
+            timeline: { beatMarkers: [...Timeline.beatMarkers] }
+          }
+        }).catch(() => {});
+      }
+    }, 2500);
+  },
+
   pushHistoryState(description) {
+    this.triggerAutoSave();
     const state = {
       desc: description,
       filter: { ...FilterEngine },

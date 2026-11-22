@@ -25,6 +25,11 @@ export const Hub = {
   },
 
   show() {
+    if (Player.video && !Player.video.paused) {
+      Player.video.pause();
+      Player.isPlaying = false;
+      if (Player.onPlayStateChange) Player.onPlayStateChange(false);
+    }
     document.getElementById('project-hub-space').style.display = 'flex';
     document.getElementById('editor-space').style.display = 'none';
     document.getElementById('navBtnHub').classList.add('on');
@@ -52,7 +57,7 @@ export const Hub = {
         cuesCount: 4,
         updatedAt: Date.now() - 3600000 * 3,
         projectData: {
-          filters: { activeLUT: 'cyberpunk', brightness: 108, contrast: 115, saturation: 130, aspectRatio: '9:16' },
+          filters: { activeLUT: 'cyberpunk', brightness: 8, contrast: 15, saturation: 30, aspectRatio: '9:16' },
           subtitles: {
             style: { font: 'Anton', size: 38, color: '#e8ff47', motion: 'karaoke', positionY: 0.82 },
             cues: [
@@ -74,7 +79,7 @@ export const Hub = {
         cuesCount: 3,
         updatedAt: Date.now() - 3600000 * 24,
         projectData: {
-          filters: { activeLUT: 'teal-orange', brightness: 97, contrast: 118, saturation: 110, aspectRatio: '16:9' },
+          filters: { activeLUT: 'teal-orange', brightness: -2, contrast: 18, saturation: 10, aspectRatio: '16:9' },
           subtitles: {
             style: { font: 'Syne', size: 32, color: '#f4f4fb', motion: 'fade-slide', positionY: 0.86 },
             cues: [
@@ -99,11 +104,30 @@ export const Hub = {
     const grid = document.getElementById('hubProjectsGrid');
     if (!grid) return;
     const projects = await Storage.getProjects();
-    if (!projects.length) {
+
+    let activeBannerHTML = '';
+    if (Player.isLoaded) {
+      activeBannerHTML = `
+        <div style="grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:linear-gradient(90deg,rgba(232,255,71,.12),rgba(71,184,255,.08));border:1px solid rgba(232,255,71,.35);border-radius:12px;margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:18px">⚡</span>
+            <div>
+              <div style="font-size:13px;font-weight:700;color:#fff">Active Project in Studio</div>
+              <div style="font-size:11px;color:var(--txt-dim)">Duration: ${Timeline.formatTimecode(Timeline.duration || 12)} · ${SubtitlesManager.cues.length} Subtitles</div>
+            </div>
+          </div>
+          <button class="hub-cta-btn primary" id="btnResumeActiveProject" style="padding:7px 16px;font-size:12px">
+            Resume Editing Studio →
+          </button>
+        </div>`;
+    }
+
+    if (!projects.length && !Player.isLoaded) {
       grid.innerHTML = `<div class="hub-empty"><div style="font-size:40px;margin-bottom:12px">📂</div><h4>No Projects Yet</h4><p>Start a new project or import a .videoforge file</p></div>`;
       return;
     }
-    grid.innerHTML = projects.map(p => {
+
+    const cardsHTML = projects.map(p => {
       const date = new Date(p.updatedAt || Date.now()).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
       const ar = p.aspectRatio || '16:9';
       const dur = p.duration ? p.duration.toFixed(1) + 's' : '--';
@@ -125,6 +149,12 @@ export const Hub = {
           </div>
         </div>`;
     }).join('');
+
+    grid.innerHTML = activeBannerHTML + cardsHTML;
+
+    document.getElementById('btnResumeActiveProject')?.addEventListener('click', () => {
+      this.showEditor();
+    });
 
     grid.querySelectorAll('.btn-proj-open').forEach(btn =>
       btn.addEventListener('click', async (e) => {
@@ -159,9 +189,14 @@ export const Hub = {
     if (proj.projectData?.filters) {
       const f = proj.projectData.filters;
       if (f.activeLUT) FilterEngine.activeLUT = f.activeLUT;
-      if (f.brightness) FilterEngine.brightness = f.brightness;
-      if (f.contrast) FilterEngine.contrast = f.contrast;
-      if (f.saturation) FilterEngine.saturation = f.saturation;
+      if (f.brightness !== undefined) FilterEngine.brightness = f.brightness;
+      if (f.contrast !== undefined) FilterEngine.contrast = f.contrast;
+      if (f.saturation !== undefined) FilterEngine.saturation = f.saturation;
+      if (f.aspectRatio) {
+        FilterEngine.aspectRatio = f.aspectRatio;
+        const select = document.getElementById('aspectRatioSelect');
+        if (select) select.value = f.aspectRatio;
+      }
       this.app.renderFilterGallery();
     }
 
@@ -202,6 +237,7 @@ export const Hub = {
             <div class="hub-gallery-name" title="${it.name}">${it.name}</div>
             <div class="hub-gallery-meta">${it.sizeStr || ''} ${it.durationStr ? '· ' + it.durationStr : ''}</div>
             <div style="display:flex;gap:6px;margin-top:6px">
+              <button class="btn-gallery-preview" data-id="${it.id}" style="padding:5px 8px;background:rgba(71,184,255,.12);color:#47b8ff;border:1px solid rgba(71,184,255,.3);border-radius:6px;cursor:pointer;font-size:11px" title="Preview asset">▶</button>
               <button class="btn-gallery-insert" data-id="${it.id}" style="flex:1;padding:5px 8px;background:rgba(232,255,71,.12);color:#e8ff47;border:1px solid rgba(232,255,71,.3);border-radius:6px;cursor:pointer;font-size:11px">Use in Studio</button>
               <button class="btn-gallery-del" data-id="${it.id}" title="Remove" style="padding:5px 8px;background:rgba(255,71,87,.1);color:#ff4757;border:1px solid rgba(255,71,87,.25);border-radius:6px;cursor:pointer;font-size:11px">✕</button>
             </div>
@@ -210,6 +246,19 @@ export const Hub = {
     }).join('');
 
     const allItems = await Storage.getGallery();
+    grid.querySelectorAll('.btn-gallery-preview').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const it = allItems.find(x => x.id === btn.dataset.id);
+        if (it) {
+          if (it.type === 'audio') {
+            AudioStudio.playSynthesizedSFX('whoosh');
+            this.app.toast(`🎵 Previewing: ${it.name}`);
+          } else {
+            this.app.toast(`Selected: ${it.name}`);
+          }
+        }
+      });
+    });
     grid.querySelectorAll('.btn-gallery-insert').forEach(btn => {
       btn.addEventListener('click', () => {
         const it = allItems.find(x => x.id === btn.dataset.id);

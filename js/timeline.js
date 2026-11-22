@@ -101,6 +101,37 @@ export const Timeline = {
     });
   },
 
+  /**
+   * Render real subtitle cues visually onto the T1 Subs track lane
+   */
+  renderSubtitleCues(cues) {
+    const lane = document.querySelector('.track-subtitles');
+    if (!lane || !this.duration) return;
+
+    lane.querySelectorAll('.timeline-cue-chip').forEach(c => c.remove());
+    if (!cues || !cues.length) return;
+
+    cues.forEach(cue => {
+      const chip = document.createElement('div');
+      chip.className = 'timeline-cue-chip';
+      const leftPct = Math.max(0, Math.min(100, (cue.start / this.duration) * 100));
+      const widthPct = Math.max(1.5, Math.min(100 - leftPct, ((cue.end - cue.start) / this.duration) * 100));
+
+      chip.style.left = `${leftPct}%`;
+      chip.style.width = `${widthPct}%`;
+      chip.title = `${cue.text || 'Subtitle'} (${this.formatTimecode(cue.start)} → ${this.formatTimecode(cue.end)})`;
+      chip.innerHTML = `<span>💬 ${cue.text || '...'}</span>`;
+
+      chip.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.setTime(cue.start);
+        if (this.onSeek) this.onSeek(cue.start);
+      });
+
+      lane.appendChild(chip);
+    });
+  },
+
   seekByRatio(ratio) {
     if (!this.duration) return;
     let targetTime = Math.max(0, Math.min(ratio * this.duration, this.duration));
@@ -158,9 +189,14 @@ export const Timeline = {
 
   zoom(factor) {
     this.zoomScale = Math.max(1.0, Math.min(4.0, this.zoomScale * factor));
+    const widthPct = `${this.zoomScale * 100}%`;
     if (this.trackContainer) {
-      this.trackContainer.style.width = `${this.zoomScale * 100}%`;
+      this.trackContainer.style.width = widthPct;
     }
+    if (this.rulerEl) {
+      this.rulerEl.style.width = widthPct;
+    }
+    this.renderBeatMarkersUI();
   },
 
   formatTimecode(seconds) {
@@ -175,9 +211,28 @@ export const Timeline = {
     if (!this.trackContainer) return;
 
     let isDraggingPlayhead = false;
+    let isDraggingTrimIn = false;
+    let isDraggingTrimOut = false;
 
+    // Direct Trim In drag
+    if (this.trimInEl) {
+      this.trimInEl.addEventListener('mousedown', (e) => {
+        e.stopPropagation();
+        isDraggingTrimIn = true;
+      });
+    }
+
+    // Direct Trim Out drag
+    if (this.trimOutEl) {
+      this.trimOutEl.addEventListener('mousedown', (e) => {
+        e.stopPropagation();
+        isDraggingTrimOut = true;
+      });
+    }
+
+    // Playhead seek on track click/drag
     this.trackContainer.addEventListener('mousedown', (e) => {
-      if (e.target.closest('.trim-handle')) return;
+      if (e.target.closest('.trim-handle') || e.target.closest('.timeline-cue-chip')) return;
       isDraggingPlayhead = true;
       const rect = this.trackContainer.getBoundingClientRect();
       const ratio = (e.clientX - rect.left) / rect.width;
@@ -185,14 +240,26 @@ export const Timeline = {
     });
 
     window.addEventListener('mousemove', (e) => {
-      if (!isDraggingPlayhead || !this.trackContainer) return;
+      if (!this.trackContainer || !this.duration) return;
       const rect = this.trackContainer.getBoundingClientRect();
-      const ratio = (e.clientX - rect.left) / rect.width;
-      this.seekByRatio(ratio);
+      const posRatio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const targetSec = posRatio * this.duration;
+
+      if (isDraggingTrimIn) {
+        this.trimIn = Math.min(targetSec, this.trimOut - 0.2);
+        this.updateUI();
+      } else if (isDraggingTrimOut) {
+        this.trimOut = Math.max(targetSec, this.trimIn + 0.2);
+        this.updateUI();
+      } else if (isDraggingPlayhead) {
+        this.seekByRatio(posRatio);
+      }
     });
 
     window.addEventListener('mouseup', () => {
       isDraggingPlayhead = false;
+      isDraggingTrimIn = false;
+      isDraggingTrimOut = false;
     });
   }
 };

@@ -46,8 +46,22 @@ export const AudioStudio = {
 
   spectrumData: null,
   isInitialized: false,
+  availableVoices: [],
+
+  initVoices() {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      const load = () => {
+        this.availableVoices = window.speechSynthesis.getVoices();
+      };
+      load();
+      if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = load;
+      }
+    }
+  },
 
   init(mediaElement) {
+    this.initVoices();
     try {
       if (!this.ctx) {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -260,8 +274,8 @@ export const AudioStudio = {
     utterance.pitch = persona.pitch;
     utterance.rate = persona.rate;
 
-    const voices = window.speechSynthesis.getVoices();
-    const preferredVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Neural'))) || voices[0];
+    const voices = this.availableVoices.length ? this.availableVoices : window.speechSynthesis.getVoices();
+    const preferredVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Neural') || v.name.includes('Guy') || v.name.includes('Jenny'))) || voices[0];
     if (preferredVoice) utterance.voice = preferredVoice;
 
     utterance.onstart = () => {

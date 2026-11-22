@@ -73,6 +73,15 @@ export const SubtitlesManager = {
   deleteCue(id) { this.cues = this.cues.filter(c => c.id !== id); },
   clearAllCues() { this.cues = []; },
 
+  nudgeCues(deltaSec) {
+    if (!this.cues || !this.cues.length) return;
+    this.cues.forEach(c => {
+      c.start = Math.max(0, parseFloat((c.start + deltaSec).toFixed(2)));
+      c.end = Math.max(0.1, parseFloat((c.end + deltaSec).toFixed(2)));
+    });
+    this.cues.sort((a, b) => a.start - b.start);
+  },
+
   // ── VAD: audio energy segmenter (purely for timestamp detection) ─────────
 
   async autoSegmentSpeechFromAudio(audioBuffer, videoDuration = 30) {

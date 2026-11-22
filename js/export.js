@@ -18,14 +18,14 @@ export const ExportEngine = {
     
     const a = document.createElement('a');
     a.href = dataUrl;
-    a.download = `videoforge-frame-${Date.now()}.${format}`;
+    a.download = `studio-frame-${Date.now()}.${format}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
   },
 
   /**
-   * Real in-browser video rendering and export
+   * Real in-browser video rendering and export with resolution scaling & image/video support
    */
   async exportVideo({
     canvas,
@@ -44,6 +44,36 @@ export const ExportEngine = {
     if (this.isExporting) return;
     this.isExporting = true;
     this.recordedChunks = [];
+
+    const origW = canvas.width;
+    const origH = canvas.height;
+
+    // Apply Resolution Scaling
+    const resMap = {
+      '720p': 720,
+      '1080p': 1080,
+      '4k': 2160
+    };
+    const targetBase = resMap[resolution] || 1080;
+    const aspect = origW / (origH || 1);
+
+    let targetW = Math.round(targetBase * aspect);
+    let targetH = targetBase;
+    if (aspect < 1) { // Portrait (9:16)
+      targetW = targetBase;
+      targetH = Math.round(targetBase / aspect);
+    }
+    // Ensure even dimensions
+    targetW = targetW % 2 === 0 ? targetW : targetW + 1;
+    targetH = targetH % 2 === 0 ? targetH : targetH + 1;
+
+    canvas.width = targetW;
+    canvas.height = targetH;
+
+    const restoreCanvas = () => {
+      canvas.width = origW;
+      canvas.height = origH;
+    };
 
     try {
       // 1. Prepare video stream from canvas
@@ -84,6 +114,7 @@ export const ExportEngine = {
       };
 
       this.recorder.onstop = () => {
+        restoreCanvas();
         const blob = new Blob(this.recordedChunks, { type: mimeType });
         const url = URL.createObjectURL(blob);
         this.isExporting = false;
@@ -93,35 +124,59 @@ export const ExportEngine = {
         }
       };
 
-      // 4. Seek video to start time and record during playback
-      videoElement.currentTime = startTime;
-      await new Promise(r => { videoElement.onseeked = r; });
+      const isVideo = videoElement && videoElement.src && !isNaN(videoElement.duration);
+      const totalDuration = Math.max(1, (endTime || (isVideo ? videoElement.duration : 12)) - startTime);
 
-      const totalDuration = Math.max(1, (endTime || videoElement.duration) - startTime);
-      this.recorder.start(100);
-      videoElement.play();
+      if (isVideo) {
+        videoElement.currentTime = startTime;
+        await new Promise(r => { videoElement.onseeked = r; });
+        this.recorder.start(100);
+        videoElement.play();
 
-      const progressInterval = setInterval(() => {
-        if (!this.isExporting) {
-          clearInterval(progressInterval);
-          return;
-        }
+        const progressInterval = setInterval(() => {
+          if (!this.isExporting) {
+            clearInterval(progressInterval);
+            restoreCanvas();
+            return;
+          }
 
-        const elapsed = Math.max(0, videoElement.currentTime - startTime);
-        const progressPct = Math.min(100, Math.round((elapsed / totalDuration) * 100));
+          const elapsed = Math.max(0, videoElement.currentTime - startTime);
+          const progressPct = Math.min(100, Math.round((elapsed / totalDuration) * 100));
 
-        if (onProgress) {
-          onProgress(progressPct, elapsed, totalDuration);
-        }
+          if (onProgress) {
+            onProgress(progressPct, elapsed, totalDuration);
+          }
 
-        if (videoElement.currentTime >= (endTime || videoElement.duration) || videoElement.ended) {
-          clearInterval(progressInterval);
-          videoElement.pause();
-          this.recorder.stop();
-        }
-      }, 100);
+          if (videoElement.currentTime >= (endTime || videoElement.duration) || videoElement.ended) {
+            clearInterval(progressInterval);
+            videoElement.pause();
+            this.recorder.stop();
+          }
+        }, 100);
+      } else {
+        // Image / Canvas Demo export loop
+        this.recorder.start(100);
+        let elapsed = 0;
+        const progressInterval = setInterval(() => {
+          if (!this.isExporting) {
+            clearInterval(progressInterval);
+            restoreCanvas();
+            return;
+          }
+
+          elapsed += 0.1;
+          const progressPct = Math.min(100, Math.round((elapsed / totalDuration) * 100));
+          if (onProgress) onProgress(progressPct, elapsed, totalDuration);
+
+          if (elapsed >= totalDuration) {
+            clearInterval(progressInterval);
+            this.recorder.stop();
+          }
+        }, 100);
+      }
 
     } catch (err) {
+      restoreCanvas();
       this.isExporting = false;
       if (onError) onError(err);
     }

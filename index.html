@@ -448,6 +448,7 @@
                   <button class="btn-preset" onclick="Player.addSticker('⭐ 4K', 0.85, 0.12)">⭐ 4K</button>
                   <button class="btn-preset" onclick="Player.addSticker('⚡ NEW', 0.5, 0.8)">⚡ NEW</button>
                 </div>
+                <div id="activeOverlaysList" style="margin-top:8px;display:flex;flex-direction:column;gap:4px"></div>
               </div>
             </div>
           </div>
@@ -672,6 +673,28 @@
                   <div class="control-row">
                     <div class="control-label"><span>Outline Color</span></div>
                     <input type="color" value="#000000" onchange="SubtitlesManager.style.strokeColor=this.value">
+                  </div>
+                </div>
+
+                <!-- Subtitle Vertical Position -->
+                <div class="control-row">
+                  <div class="control-label"><span>Vertical Position</span><span class="val">84%</span></div>
+                  <div class="range-wrap"><input type="range" min="10" max="92" value="84" oninput="SubtitlesManager.style.positionY=parseFloat(this.value)/100;this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value+'%'"></div>
+                  <div style="display:flex;gap:4px;margin-top:4px">
+                    <button class="tbb" style="flex:1;padding:3px 6px;font-size:10px" onclick="SubtitlesManager.style.positionY=0.18;App.toast('Position: Top (18%)')">Top</button>
+                    <button class="tbb" style="flex:1;padding:3px 6px;font-size:10px" onclick="SubtitlesManager.style.positionY=0.50;App.toast('Position: Center (50%)')">Center</button>
+                    <button class="tbb" style="flex:1;padding:3px 6px;font-size:10px" onclick="SubtitlesManager.style.positionY=0.84;App.toast('Position: Bottom (84%)')">Bottom</button>
+                  </div>
+                </div>
+
+                <!-- Sync Calibration (Shift All) -->
+                <div class="control-row" style="margin-top:6px">
+                  <div class="control-label"><span>Sync Calibration (Shift All)</span></div>
+                  <div style="display:flex;gap:4px">
+                    <button class="tbb" style="flex:1;padding:4px 6px;font-size:11px" onclick="App.nudgeSubtitles(-0.5)" title="Shift all cues 0.5s earlier">-0.5s</button>
+                    <button class="tbb" style="flex:1;padding:4px 6px;font-size:11px" onclick="App.nudgeSubtitles(-0.1)" title="Shift all cues 0.1s earlier">-0.1s</button>
+                    <button class="tbb" style="flex:1;padding:4px 6px;font-size:11px" onclick="App.nudgeSubtitles(0.1)" title="Shift all cues 0.1s later">+0.1s</button>
+                    <button class="tbb" style="flex:1;padding:4px 6px;font-size:11px" onclick="App.nudgeSubtitles(0.5)" title="Shift all cues 0.5s later">+0.5s</button>
                   </div>
                 </div>
 
@@ -934,6 +957,7 @@
       if (val) {
         Player.addTextOverlay(val, { font: 'Syne', size: 36, weight: '700', color: '#ffffff' });
         document.getElementById('newTextOverlayInput').value = '';
+        App.renderTextOverlaysList();
         App.toast('Title added to video');
       }
     }

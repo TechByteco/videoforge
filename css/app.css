@@ -1421,3 +1421,75 @@ select:focus, input[type=text]:focus {
   font-size: 12px; font-weight: 600; cursor: pointer; transition: .2s;
   white-space: nowrap;
 }
+
+/* -- TIMELINE SUBTITLE CUE CHIPS -------------------------- */
+.track-subtitles {
+  position: relative !important;
+  overflow: hidden;
+}
+.timeline-cue-chip {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  background: rgba(232, 255, 71, 0.28);
+  border: 1px solid var(--acc);
+  border-radius: 4px;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  cursor: pointer;
+  z-index: 5;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.timeline-cue-chip:hover {
+  background: rgba(232, 255, 71, 0.55);
+  border-color: #fff;
+  z-index: 10;
+  transform: translateY(-1px);
+}
+.timeline-cue-chip span {
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
+
+/* -- RESPONSIVE POLISH ------------------------------------- */
+@media (max-width: 1080px) {
+  nav {
+    overflow-x: auto;
+    padding: 0 10px;
+    gap: 8px;
+  }
+  .ntabs {
+    gap: 2px;
+  }
+  .nt {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+  .hub-hero {
+    padding: 24px 20px 20px;
+  }
+  .hub-section {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .logo-group .badge {
+    display: none;
+  }
+  .hub-nav-btn {
+    padding: 5px 9px;
+    font-size: 11px;
+  }
+  .hub-cta-btn {
+    padding: 9px 14px;
+    font-size: 12px;
+  }
+}
