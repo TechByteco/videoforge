@@ -316,14 +316,28 @@ export const App = {
           e.preventDefault();
           Timeline.stepFrame(e.shiftKey ? 0.05 : 1.0);
           break;
+        case 'KeyC':
+          this.splitClip();
+          break;
+        case 'KeyD':
+          if (e.ctrlKey) {
+            e.preventDefault();
+            Timeline.duplicateActiveClip();
+            this.toast('Clip Duplicated (Ctrl+D)');
+          }
+          break;
+        case 'KeyF':
+          Player.toggleFullscreen();
+          break;
         case 'KeyJ':
-          Timeline.stepFrame(-2.0);
+          Timeline.shuttleRewind(Player);
           break;
         case 'KeyK':
           Player.togglePlay();
           break;
         case 'KeyL':
-          Timeline.stepFrame(2.0);
+          const spd = Timeline.shuttleForward(Player);
+          this.toast(`Shuttle Speed: ${spd}x`);
           break;
         case 'KeyM':
           Player.toggleMute();
@@ -364,12 +378,27 @@ export const App = {
 
   startAudioSpectrumLoop() {
     const bars = document.querySelectorAll('.spectrum-bar');
+    const vuFill = document.getElementById('audioVuMeterFill');
+    const vuDbText = document.getElementById('audioVuDbText');
+
     const tick = () => {
-      if (Player.isPlaying && bars.length) {
-        const levels = AudioStudio.getSpectrumLevels();
-        bars.forEach((b, idx) => {
-          b.style.height = `${levels[idx] || 4}px`;
-        });
+      if (Player.isPlaying) {
+        if (bars.length) {
+          const levels = AudioStudio.getSpectrumLevels();
+          bars.forEach((b, idx) => {
+            b.style.height = `${levels[idx] || 4}px`;
+          });
+        }
+        if (vuFill || vuDbText) {
+          const peak = AudioStudio.getPeakDbLevels();
+          if (vuFill) {
+            vuFill.style.width = `${peak.peakPct}%`;
+            vuFill.style.background = peak.isClipping ? 'var(--danger)' : (peak.peakPct > 75 ? '#ffd600' : 'var(--ok)');
+          }
+          if (vuDbText) {
+            vuDbText.textContent = `${peak.db} dB`;
+          }
+        }
       }
       requestAnimationFrame(tick);
     };
@@ -547,6 +576,88 @@ export const App = {
     SubtitlesManager.clearAllCues();
     this.renderSubtitlesList();
     this.toast('All subtitles cleared');
+  },
+
+  applyCaptionPreset(presetId) {
+    if (SubtitlesManager.applyCaptionPreset(presetId)) {
+      if (this.dom.subFontSelect) this.dom.subFontSelect.value = SubtitlesManager.style.font;
+      if (this.dom.subMotionSelect) this.dom.subMotionSelect.value = SubtitlesManager.style.motion;
+      this.renderSubtitlesList();
+      const p = SubtitlesManager.captionPresets.find(x => x.id === presetId);
+      this.toast(`Applied Preset: ${p ? p.name : presetId}`);
+    }
+  },
+
+  setFilmGrainPreset(val) {
+    FilterEngine.filmGrain = val;
+    const range = document.getElementById('filterFilmGrainRange');
+    if (range) {
+      range.value = val;
+      const valLabel = range.parentElement.previousElementSibling?.querySelector('.val');
+      if (valLabel) valLabel.textContent = val;
+    }
+    this.toast(`Film Grain set to ${val}%`);
+  },
+
+  setLetterboxPreset(val) {
+    FilterEngine.letterbox = val;
+    const range = document.getElementById('filterLetterboxRange');
+    if (range) {
+      range.value = val;
+      const valLabel = range.parentElement.previousElementSibling?.querySelector('.val');
+      if (valLabel) valLabel.textContent = val;
+    }
+    this.toast(`Cinematic Letterbox set to ${val}%`);
+  },
+
+  autoInjectEmojis() {
+    const count = SubtitlesManager.injectAutoEmojis();
+    this.renderSubtitlesList();
+    this.toast(`🔥 Injected ${count} contextual emojis across subtitles`);
+  },
+
+  searchAndReplaceCaptions() {
+    const search = prompt('Enter word or text to find:');
+    if (!search) return;
+    const replace = prompt(`Replace "${search}" with:`) || '';
+    const count = SubtitlesManager.searchAndReplace(search, replace);
+    this.renderSubtitlesList();
+    this.toast(`Replaced ${count} occurrence(s) of "${search}"`);
+  },
+
+  async runAutoSilenceRemover() {
+    if (!Player.video?.src) {
+      this.toast('Upload media first to analyze speech silences');
+      return;
+    }
+    this.toast('🔍 Analyzing speech energy & silence pauses…');
+    try {
+      const response = await fetch(Player.video.src);
+      const arrayBuffer = await response.arrayBuffer();
+      const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const audioBuf = await tempCtx.decodeAudioData(arrayBuffer);
+
+      const result = await AudioStudio.detectSilencesFromBuffer(audioBuf, -36, 0.35, 0.05);
+      Timeline.renderSilenceZones(result.silences);
+      this.toast(`⚡ Found ${result.silenceCount} silence pauses (${result.totalSilenceDuration}s). Speech pacing: ${result.speechRatioPct}%`);
+    } catch (e) {
+      this.toast('Silence analysis unavailable on this track');
+    }
+  },
+
+  toggleSafeZoneOverlay() {
+    FilterEngine.safeZoneOverlay = !FilterEngine.safeZoneOverlay;
+    this.toast(FilterEngine.safeZoneOverlay ? 'TikTok/Reels Safe Zone ON' : 'Safe Zone OFF');
+  },
+
+  toggleGridOverlay() {
+    FilterEngine.gridOverlay = !FilterEngine.gridOverlay;
+    this.toast(FilterEngine.gridOverlay ? 'Composition Grid ON' : 'Grid OFF');
+  },
+
+  toggleProgressBarOverlay() {
+    FilterEngine.progressBarOverlay = !FilterEngine.progressBarOverlay;
+    this.toast(FilterEngine.progressBarOverlay ? 'Social Progress Bar ON' : 'Progress Bar OFF');
   },
 
   async translateActiveSubtitles() {

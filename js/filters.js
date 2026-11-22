@@ -63,6 +63,12 @@ export const FilterEngine = {
   chromaTolerance: 0.35,
   chromaSmoothness: 0.1,
 
+  // Composition Guides & Progress
+  safeZoneOverlay: false,
+  gridOverlay: false,
+  progressBarOverlay: false,
+  totalDuration: 12,
+
   // Split Screen Comparison (Before vs After)
   splitScreen: false,
   splitPosition: 0.5,
@@ -288,6 +294,7 @@ export const FilterEngine = {
    */
   renderFrame(ctx, videoEl, targetW, targetH, textOverlays = [], watermark = null, stickerOverlays = [], subtitlesEngine = null, currentTime = 0) {
     this.frameCount++;
+    this.currentRenderTime = currentTime;
     const vW = videoEl.videoWidth || targetW;
     const vH = videoEl.videoHeight || targetH;
 
@@ -564,6 +571,20 @@ export const FilterEngine = {
           offsetY = (Math.random() - 0.5) * 4;
         }
         break;
+
+      case 'hormozi-bounce':
+        if (elapsedSinceStart < 0.2) {
+          scale = 0.8 + 0.35 * Math.sin((elapsedSinceStart / 0.2) * Math.PI);
+        }
+        break;
+
+      case 'mrbeast-glow':
+        ctx.shadowColor = style.highlightColor || '#00e5ff';
+        ctx.shadowBlur = 18;
+        if (elapsedSinceStart < 0.15) {
+          scale = 1.15;
+        }
+        break;
     }
 
     ctx.globalAlpha = opacity;
@@ -575,28 +596,45 @@ export const FilterEngine = {
     const posX = w / 2;
     const posY = (style.positionY || 0.84) * h + offsetY;
 
-    let displayText = cue.text;
+    let displayText = style.uppercase ? cue.text.toUpperCase() : cue.text;
 
-    // Karaoke mode
-    if (style.motion === 'karaoke') {
-      const words = cue.text.split(' ');
+    // Karaoke mode or Hormozi viral bounce
+    if (style.motion === 'karaoke' || style.motion === 'hormozi-bounce' || style.motion === 'mrbeast-glow') {
+      const words = displayText.split(' ');
       const activeWordIdx = Math.min(words.length - 1, Math.floor(progress * words.length));
       
       const metrics = ctx.measureText(displayText);
-      const padX = 20, padY = 10;
+      const padX = 22, padY = 12;
       
       if (style.showBadge) {
         ctx.fillStyle = style.backgroundColor || 'rgba(0,0,0,0.85)';
         ctx.beginPath();
-        ctx.roundRect(posX - metrics.width / 2 - padX, posY - fontSize / 2 - padY, metrics.width + padX * 2, fontSize + padY * 2, 8);
+        ctx.roundRect(posX - metrics.width / 2 - padX, posY - fontSize / 2 - padY, metrics.width + padX * 2, fontSize + padY * 2, 10);
         ctx.fill();
       }
 
       let curX = posX - metrics.width / 2;
       words.forEach((wrd, idx) => {
         const wrdMetrics = ctx.measureText(wrd + ' ');
-        ctx.fillStyle = idx === activeWordIdx ? '#e8ff47' : (idx < activeWordIdx ? '#ffffff' : 'rgba(255,255,255,0.4)');
+        const isCurrent = idx === activeWordIdx;
+        const targetColor = isCurrent ? (style.highlightColor || '#47ffb8') : (idx < activeWordIdx ? (style.color || '#ffffff') : 'rgba(255,255,255,0.45)');
+        
+        ctx.save();
+        if (isCurrent && (style.motion === 'hormozi-bounce' || style.motion === 'mrbeast-glow')) {
+          ctx.translate(curX + wrdMetrics.width / 2, posY);
+          ctx.scale(1.18, 1.18);
+          ctx.translate(-(curX + wrdMetrics.width / 2), -posY);
+        }
+
+        if (style.strokeWidth) {
+          ctx.strokeStyle = style.strokeColor || '#000000';
+          ctx.lineWidth = style.strokeWidth;
+          ctx.strokeText(wrd, curX + wrdMetrics.width / 2, posY);
+        }
+        ctx.fillStyle = targetColor;
         ctx.fillText(wrd, curX + wrdMetrics.width / 2, posY);
+        ctx.restore();
+
         curX += wrdMetrics.width;
       });
       ctx.restore();
@@ -689,6 +727,48 @@ export const FilterEngine = {
         ctx.fillText(stk.emoji || '⭐', sx, sy);
         ctx.restore();
       });
+    }
+
+    // 1. TikTok/Reels Safe Zone Guide
+    if (this.safeZoneOverlay) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(232, 255, 71, 0.6)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 8]);
+      ctx.strokeRect(w * 0.06, h * 0.12, w * 0.88, h * 0.68);
+      ctx.fillStyle = 'rgba(232, 255, 71, 0.8)';
+      ctx.font = '700 12px Syne, sans-serif';
+      ctx.fillText('TikTok / Reels Safe Zone', w * 0.08, h * 0.15);
+      ctx.restore();
+    }
+
+    // 2. Rule of Thirds Grid
+    if (this.gridOverlay) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(w / 3, 0); ctx.lineTo(w / 3, h);
+      ctx.moveTo((w * 2) / 3, 0); ctx.lineTo((w * 2) / 3, h);
+      ctx.moveTo(0, h / 3); ctx.lineTo(w, h / 3);
+      ctx.moveTo(0, (h * 2) / 3); ctx.lineTo(w, (h * 2) / 3);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 3. Social Video Progress Bar
+    if (this.progressBarOverlay && this.totalDuration) {
+      ctx.save();
+      const progress = Math.min(1, Math.max(0, (this.currentRenderTime || 0) / (this.totalDuration || 1)));
+      const barH = 6;
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(0, h - barH, w, barH);
+      const grad = ctx.createLinearGradient(0, 0, w, 0);
+      grad.addColorStop(0, '#47b8ff');
+      grad.addColorStop(1, '#e8ff47');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, h - barH, w * progress, barH);
+      ctx.restore();
     }
   },
 

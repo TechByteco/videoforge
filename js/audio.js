@@ -259,6 +259,84 @@ export const AudioStudio = {
   },
 
   /**
+   * Smart Silence Detection & Voice Activity Analysis
+   * Detects pauses, awkward silences, and dialogue pacing for 1-click Auto-Jumpcut
+   */
+  async detectSilencesFromBuffer(audioBuffer, thresholdDb = -36, minDurationSec = 0.35, paddingSec = 0.05) {
+    const rawData = audioBuffer.getChannelData(0);
+    const sr = audioBuffer.sampleRate;
+    const windowSize = Math.floor(sr * 0.02); // 20ms analysis window
+    const silences = [];
+
+    const linearThreshold = Math.pow(10, thresholdDb / 20);
+    let inSilence = false;
+    let silenceStart = 0;
+    let totalSilenceDuration = 0;
+
+    for (let i = 0; i < rawData.length - windowSize; i += windowSize) {
+      let sum = 0;
+      for (let j = 0; j < windowSize; j++) {
+        sum += rawData[i + j] * rawData[i + j];
+      }
+      const rms = Math.sqrt(sum / windowSize);
+
+      if (rms < linearThreshold) {
+        if (!inSilence) {
+          inSilence = true;
+          silenceStart = i / sr;
+        }
+      } else {
+        if (inSilence) {
+          const silenceEnd = i / sr;
+          const dur = silenceEnd - silenceStart;
+          if (dur >= minDurationSec) {
+            const paddedStart = parseFloat(Math.max(0, silenceStart + paddingSec).toFixed(2));
+            const paddedEnd = parseFloat(Math.max(paddedStart + 0.1, silenceEnd - paddingSec).toFixed(2));
+            if (paddedEnd > paddedStart) {
+              silences.push({ start: paddedStart, end: paddedEnd, duration: parseFloat((paddedEnd - paddedStart).toFixed(2)) });
+              totalSilenceDuration += (paddedEnd - paddedStart);
+            }
+          }
+          inSilence = false;
+        }
+      }
+    }
+
+    const totalDur = audioBuffer.duration || 1;
+    const speechRatioPct = Math.round(((totalDur - totalSilenceDuration) / totalDur) * 100);
+
+    return {
+      silences,
+      totalSilenceDuration: parseFloat(totalSilenceDuration.toFixed(2)),
+      speechRatioPct: Math.max(0, Math.min(100, speechRatioPct)),
+      silenceCount: silences.length
+    };
+  },
+
+  /**
+   * Real-time VU Peak Meter with dB level & clipping detection
+   */
+  getPeakDbLevels() {
+    if (!this.analyser || !this.spectrumData) return { db: -60, peakPct: 0, isClipping: false };
+    this.analyser.getByteFrequencyData(this.spectrumData);
+
+    let maxVal = 0;
+    for (let i = 0; i < this.spectrumData.length; i++) {
+      if (this.spectrumData[i] > maxVal) maxVal = this.spectrumData[i];
+    }
+
+    const normalized = maxVal / 255;
+    const db = normalized > 0.001 ? Math.round(20 * Math.log10(normalized)) : -60;
+    const peakPct = Math.round(normalized * 100);
+
+    return {
+      db,
+      peakPct,
+      isClipping: db >= -1
+    };
+  },
+
+  /**
    * Clean Voice Cloning / TTS Generator (No Promotional Text)
    */
   generateVoiceClone(text, personaId = 'trailer', onComplete) {
@@ -329,6 +407,45 @@ export const AudioStudio = {
         env.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
         osc.start(now);
         osc.stop(now + 0.52);
+        break;
+
+      case 'boom':
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.exponentialRampToValueAtTime(30, now + 0.6);
+        env.gain.setValueAtTime(0.6, now);
+        env.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
+        osc.start(now);
+        osc.stop(now + 0.76);
+        break;
+
+      case 'camera':
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(1200, now);
+        osc.frequency.setValueAtTime(400, now + 0.04);
+        env.gain.setValueAtTime(0.3, now);
+        env.gain.linearRampToValueAtTime(0.001, now + 0.09);
+        osc.start(now);
+        osc.stop(now + 0.1);
+        break;
+
+      case 'click':
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(800, now);
+        env.gain.setValueAtTime(0.15, now);
+        env.gain.linearRampToValueAtTime(0.001, now + 0.04);
+        osc.start(now);
+        osc.stop(now + 0.045);
+        break;
+
+      case 'pop':
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.exponentialRampToValueAtTime(900, now + 0.08);
+        env.gain.setValueAtTime(0.35, now);
+        env.gain.linearRampToValueAtTime(0.001, now + 0.1);
+        osc.start(now);
+        osc.stop(now + 0.11);
         break;
 
       case 'lofi-chord':

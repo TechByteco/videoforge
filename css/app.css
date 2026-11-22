@@ -1493,3 +1493,15 @@ select:focus, input[type=text]:focus {
     font-size: 12px;
   }
 }
+
+/* -- TIMELINE SILENCE ZONES ------------------------------- */
+.silence-zone-block {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(255, 71, 87, 0.35);
+  border-left: 1px dashed var(--danger);
+  border-right: 1px dashed var(--danger);
+  pointer-events: none;
+  z-index: 4;
+}

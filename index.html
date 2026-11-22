@@ -233,7 +233,17 @@
             Before/After
           </button>
 
-          <button class="tbb" onclick="App.toggleFullscreen()" title="Fullscreen Stage (F)">
+          <button class="tbb" onclick="App.toggleSafeZoneOverlay(); this.classList.toggle('active');" title="TikTok / Reels Safe Zone Overlay">
+            Safe Zone
+          </button>
+          <button class="tbb" onclick="App.toggleGridOverlay(); this.classList.toggle('active');" title="Rule of Thirds 3x3 Composition Grid">
+            3×3 Grid
+          </button>
+          <button class="tbb" onclick="App.toggleProgressBarOverlay(); this.classList.toggle('active');" title="Social Video Progress Bar">
+            Progress Bar
+          </button>
+
+          <button class="tbb" onclick="Player.toggleFullscreen()" title="Fullscreen Stage (F)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
           </button>
           
@@ -292,13 +302,15 @@
         <div class="timeline-dock">
           <div class="timeline-header">
             <div class="timeline-controls">
-              <span class="timeline-scale-label">TIMELINE TRACKS</span>
+              <span class="timeline-scale-label">TIMELINE</span>
               <button class="tbb" style="padding:2px 8px;font-size:10px" onclick="Timeline.zoom(1.2)">+ Zoom</button>
               <button class="tbb" style="padding:2px 8px;font-size:10px" onclick="Timeline.zoom(0.8)">- Zoom</button>
-              <button class="tbb" style="padding:2px 8px;font-size:10px" onclick="App.runBeatDetection()">Detect Beats</button>
+              <button class="tbb" style="padding:2px 8px;font-size:10px" onclick="App.splitClip()" title="Split Clip at Playhead (C or S)">✂️ Razor</button>
+              <button class="tbb" style="padding:2px 8px;font-size:10px" onclick="App.runAutoSilenceRemover()" title="Detect and Highlight Silences">🔇 Silence Cut</button>
+              <button class="tbb" style="padding:2px 8px;font-size:10px" onclick="App.runBeatDetection()" title="Detect Rhythm Beats">🥁 Beats</button>
               <button class="tbb" style="padding:2px 8px;font-size:10px" onclick="Timeline.resetTrim()">Reset Trim</button>
             </div>
-            <div class="timeline-scale-label">Yellow Pins = Beat Markers (Snapping Enabled) · Press S to split</div>
+            <div class="timeline-scale-label">Pins = Beats · Red = Silences · Press C to Razor Split</div>
           </div>
 
           <!-- Time Ruler -->
@@ -475,17 +487,32 @@
               <div class="section-body">
                 <div class="control-row">
                   <div class="control-label"><span>Vignette Edge Falloff</span><span class="val">0</span></div>
-                  <div class="range-wrap"><input type="range" min="0" max="100" value="0" oninput="FilterEngine.vignette=this.value"></div>
+                  <div class="range-wrap"><input type="range" id="filterVignetteRange" min="0" max="100" value="0" oninput="FilterEngine.vignette=this.value;this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value"></div>
                 </div>
                 <div class="control-row">
                   <div class="control-label"><span>Cinematic 2.39:1 Bars</span><span class="val">0</span></div>
-                  <div class="range-wrap"><input type="range" min="0" max="100" value="0" oninput="FilterEngine.letterbox=this.value"></div>
+                  <div class="range-wrap"><input type="range" id="filterLetterboxRange" min="0" max="100" value="0" oninput="FilterEngine.letterbox=this.value;this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value"></div>
                 </div>
                 <div class="control-row">
                   <div class="control-label"><span>Film Grain &amp; Dust</span><span class="val">0</span></div>
-                  <div class="range-wrap"><input type="range" min="0" max="100" value="0" oninput="FilterEngine.filmGrain=this.value"></div>
+                  <div class="range-wrap"><input type="range" id="filterFilmGrainRange" min="0" max="100" value="0" oninput="FilterEngine.filmGrain=this.value;this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value"></div>
                 </div>
-                <div style="display:flex;gap:10px;margin-top:2px">
+
+                <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--txt-dim);margin-top:6px">FILM GRAIN PRESETS</div>
+                <div class="preset-grid" style="grid-template-columns:repeat(3,1fr)">
+                  <button class="btn-preset" onclick="App.setFilmGrainPreset(0)">Off (Clean)</button>
+                  <button class="btn-preset" onclick="App.setFilmGrainPreset(25)">16mm Indie</button>
+                  <button class="btn-preset" onclick="App.setFilmGrainPreset(55)">35mm Vintage</button>
+                </div>
+
+                <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--txt-dim);margin-top:6px">CINEMATIC SCOPE PRESETS</div>
+                <div class="preset-grid" style="grid-template-columns:repeat(3,1fr)">
+                  <button class="btn-preset" onclick="App.setLetterboxPreset(0)">Full Frame</button>
+                  <button class="btn-preset" onclick="App.setLetterboxPreset(50)">2.39:1 Scope</button>
+                  <button class="btn-preset" onclick="App.setLetterboxPreset(85)">Anamorphic Ultra</button>
+                </div>
+
+                <div style="display:flex;gap:10px;margin-top:6px">
                   <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-dim);cursor:pointer">
                     <input type="checkbox" onchange="FilterEngine.vhsGlitch=this.checked"> VHS Glitch
                   </label>
@@ -605,6 +632,14 @@
                   🎙️ AI Voice Cloning &amp; TTS Studio
                 </button>
 
+                <!-- Real-Time Master VU Peak Meter -->
+                <div class="control-row" style="margin-top:6px">
+                  <div class="control-label"><span>Master VU Peak Meter</span><span id="audioVuDbText" class="val">-∞ dB</span></div>
+                  <div style="background:var(--bg-mid);border:1px solid var(--border);border-radius:3px;height:8px;overflow:hidden;position:relative;">
+                    <div id="audioVuMeterFill" style="width:0%;height:100%;background:linear-gradient(to right, #22c55e 60%, #eab308 85%, #ef4444 100%);transition:width 0.05s ease;"></div>
+                  </div>
+                </div>
+
                 <div class="control-row">
                   <div class="control-label"><span>Master Gain Booster</span><span class="val">100%</span></div>
                   <div class="range-wrap"><input type="range" min="0" max="300" value="100" oninput="Player.setVolume(this.value);this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value+'%'"></div>
@@ -622,10 +657,14 @@
                   <div class="range-wrap"><input type="range" min="-20" max="20" value="0" oninput="AudioStudio.treble=this.value;AudioStudio.setEQ(AudioStudio.bass,AudioStudio.mid,AudioStudio.treble);this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value+' dB'"></div>
                 </div>
                 
-                <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--txt-dim);margin-top:4px">SFX SYNTHESIZER</div>
-                <div class="preset-grid">
+                <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--txt-dim);margin-top:6px">SFX &amp; FOLEY SYNTHESIZER</div>
+                <div class="preset-grid" style="grid-template-columns:repeat(3,1fr)">
                   <button class="btn-preset" onclick="AudioStudio.playSynthesizedSFX('whoosh')">💨 Whoosh</button>
-                  <button class="btn-preset" onclick="AudioStudio.playSynthesizedSFX('ding')">🔔 Bell Ding</button>
+                  <button class="btn-preset" onclick="AudioStudio.playSynthesizedSFX('ding')">🔔 Ding</button>
+                  <button class="btn-preset" onclick="AudioStudio.playSynthesizedSFX('boom')">💥 Boom</button>
+                  <button class="btn-preset" onclick="AudioStudio.playSynthesizedSFX('camera')">📸 Camera</button>
+                  <button class="btn-preset" onclick="AudioStudio.playSynthesizedSFX('click')">🔘 Click</button>
+                  <button class="btn-preset" onclick="AudioStudio.playSynthesizedSFX('pop')">🫧 Pop</button>
                   <button class="btn-preset" onclick="AudioStudio.playSynthesizedSFX('cyber-pulse')">⚡ Cyber Beat</button>
                   <button class="btn-preset" onclick="AudioStudio.playSynthesizedSFX('lofi-chord')">🎹 LoFi Chord</button>
                   <button class="btn-preset" onclick="AudioStudio.setAudioEffect('reverb')">Room Reverb</button>
@@ -643,6 +682,20 @@
                 <button class="btn-upload" style="width:100%;padding:10px" onclick="App.openAutoSubsModal()">
                   🤖 Auto-Generate Subtitles
                 </button>
+
+                <!-- Viral Style Presets -->
+                <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--txt-dim);margin-top:4px">VIRAL CAPTION PRESETS</div>
+                <div class="preset-grid" style="grid-template-columns:repeat(2,1fr);gap:5px">
+                  <button class="btn-preset" onclick="App.applyCaptionPreset('hormozi')">⚡ Hormozi Viral</button>
+                  <button class="btn-preset" onclick="App.applyCaptionPreset('mrbeast')">🔥 MrBeast Pop</button>
+                  <button class="btn-preset" onclick="App.applyCaptionPreset('neon-cyber')">🤖 Cyber Neon</button>
+                  <button class="btn-preset" onclick="App.applyCaptionPreset('minimal-editorial')">✨ Editorial Clean</button>
+                </div>
+
+                <div style="display:flex;gap:6px;margin-top:4px">
+                  <button class="btn-preset" style="flex:1" onclick="App.autoInjectEmojis()" title="Detect words and inject matching emojis">🔥 Auto-Emoji</button>
+                  <button class="btn-preset" style="flex:1" onclick="App.searchAndReplaceCaptions()" title="Find and replace text across all subtitles">🔍 Find &amp; Replace</button>
+                </div>
                 
                 <!-- Quick Add Subtitle at Current Time -->
                 <div style="display:flex;gap:6px">

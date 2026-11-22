@@ -166,6 +166,56 @@ export const Timeline = {
     return true;
   },
 
+  silenceZones: [],
+
+  renderSilenceZones(silences) {
+    this.silenceZones = silences || [];
+    const lane = document.querySelector('.track-audio');
+    if (!lane || !this.duration) return;
+
+    lane.querySelectorAll('.silence-zone-block').forEach(b => b.remove());
+
+    this.silenceZones.forEach(s => {
+      const block = document.createElement('div');
+      block.className = 'silence-zone-block';
+      const leftPct = (s.start / this.duration) * 100;
+      const widthPct = ((s.end - s.start) / this.duration) * 100;
+      block.style.left = `${leftPct}%`;
+      block.style.width = `${widthPct}%`;
+      block.title = `Silence: ${s.duration.toFixed(2)}s (${s.start.toFixed(2)}s → ${s.end.toFixed(2)}s)`;
+      lane.appendChild(block);
+    });
+  },
+
+  duplicateActiveClip() {
+    if (!this.clips.length) return false;
+    const active = this.clips[this.activeClipIndex] || this.clips[0];
+    const newClip = {
+      ...active,
+      id: `clip_${Date.now()}`,
+      name: `${active.name} (Copy)`
+    };
+    this.clips.push(newClip);
+    return true;
+  },
+
+  shuttleSpeed: 1.0,
+
+  shuttleForward(player) {
+    if (this.shuttleSpeed < 1.0) this.shuttleSpeed = 1.0;
+    else if (this.shuttleSpeed === 1.0) this.shuttleSpeed = 2.0;
+    else if (this.shuttleSpeed === 2.0) this.shuttleSpeed = 4.0;
+    else this.shuttleSpeed = 1.0;
+    if (player) player.setSpeed(this.shuttleSpeed);
+    return this.shuttleSpeed;
+  },
+
+  shuttleRewind(player) {
+    this.stepFrame(-1.0);
+    this.shuttleSpeed = 1.0;
+    if (player) player.setSpeed(1.0);
+  },
+
   setTrimInCurrent() {
     this.trimIn = Math.min(this.currentTime, this.trimOut - 0.2);
     this.updateUI();

@@ -1,6 +1,7 @@
 /**
  * VideoForge Pro - Subtitle Engine
- * Real speech recognition (Web Speech API), script-align, VAD segments, SRT/VTT export, translation via MyMemory API.
+ * Hormozi/MrBeast viral presets, karaoke word bounce, auto-emoji injection,
+ * real speech recognition, script-align, VAD segments, SRT/VTT export, and translation.
  */
 
 export const SubtitlesManager = {
@@ -20,11 +21,92 @@ export const SubtitlesManager = {
 
   motionPresets: [
     { id: 'pop-bounce', name: 'TikTok Pop-Up Bounce' },
-    { id: 'fade-slide', name: 'Cinematic Fade Slide' },
     { id: 'karaoke', name: 'Karaoke Word Highlight' },
-    { id: 'neon-pulse', name: 'Neon Pulse' },
-    { id: 'glitch-shake', name: 'Glitch Shake' },
+    { id: 'hormozi-bounce', name: 'Alex Hormozi Viral Bounce' },
+    { id: 'mrbeast-glow', name: 'MrBeast Neon Pop' },
+    { id: 'fade-slide', name: 'Cinematic Fade Slide' },
+    { id: 'neon-pulse', name: 'Neon Cyber Pulse' },
+    { id: 'glitch-shake', name: 'Digital Glitch Shake' },
     { id: 'none', name: 'Static Clean' }
+  ],
+
+  captionPresets: [
+    {
+      id: 'hormozi',
+      name: '⚡ Alex Hormozi Viral',
+      style: {
+        font: 'Anton',
+        size: 38,
+        weight: '900',
+        color: '#e8ff47',
+        highlightColor: '#47ffb8',
+        strokeColor: '#000000',
+        strokeWidth: 5,
+        showBadge: true,
+        backgroundColor: 'rgba(0,0,0,0.85)',
+        positionY: 0.82,
+        motion: 'hormozi-bounce',
+        uppercase: true,
+        burnIn: true
+      }
+    },
+    {
+      id: 'mrbeast',
+      name: '🔥 MrBeast Pop & Glow',
+      style: {
+        font: 'Bebas Neue',
+        size: 42,
+        weight: '900',
+        color: '#ffd600',
+        highlightColor: '#00e5ff',
+        strokeColor: '#000000',
+        strokeWidth: 6,
+        showBadge: false,
+        backgroundColor: 'transparent',
+        positionY: 0.80,
+        motion: 'mrbeast-glow',
+        uppercase: true,
+        burnIn: true
+      }
+    },
+    {
+      id: 'neon-cyber',
+      name: '🤖 Cyber Neon Assist',
+      style: {
+        font: 'Orbitron',
+        size: 32,
+        weight: '700',
+        color: '#00f7ff',
+        highlightColor: '#ff007f',
+        strokeColor: '#090918',
+        strokeWidth: 4,
+        showBadge: true,
+        backgroundColor: 'rgba(10, 10, 24, 0.90)',
+        positionY: 0.84,
+        motion: 'neon-pulse',
+        uppercase: false,
+        burnIn: true
+      }
+    },
+    {
+      id: 'minimal-editorial',
+      name: '✨ Minimal Clean Editorial',
+      style: {
+        font: 'Instrument Sans',
+        size: 30,
+        weight: '600',
+        color: '#f4f4fb',
+        highlightColor: '#e8ff47',
+        strokeColor: '#000000',
+        strokeWidth: 2,
+        showBadge: true,
+        backgroundColor: 'rgba(20,20,30,0.75)',
+        positionY: 0.86,
+        motion: 'fade-slide',
+        uppercase: false,
+        burnIn: true
+      }
+    }
   ],
 
   style: {
@@ -32,20 +114,20 @@ export const SubtitlesManager = {
     size: 36,
     weight: '900',
     color: '#e8ff47',
+    highlightColor: '#47ffb8',
     strokeColor: '#000000',
     strokeWidth: 4,
     showBadge: true,
     backgroundColor: 'rgba(0,0,0,0.85)',
     positionY: 0.84,
-    motion: 'pop-bounce',
+    motion: 'hormozi-bounce',
+    uppercase: true,
     burnIn: true
   },
 
   _recognitionInst: null,
   _recognizing: false,
   _cueIdCounter: 1,
-
-  // ── Helpers ──────────────────────────────────────────────────────────────
 
   _id() { return this._cueIdCounter++; },
 
@@ -82,8 +164,67 @@ export const SubtitlesManager = {
     this.cues.sort((a, b) => a.start - b.start);
   },
 
-  // ── VAD: audio energy segmenter (purely for timestamp detection) ─────────
+  applyCaptionPreset(presetId) {
+    const p = this.captionPresets.find(x => x.id === presetId);
+    if (p) {
+      this.style = { ...this.style, ...p.style };
+      return true;
+    }
+    return false;
+  },
 
+  /**
+   * Auto-Emoji keyword injection based on sentence semantics
+   */
+  injectAutoEmojis() {
+    const emojiDict = [
+      { rx: /\b(money|rich|dollar|cash|profit|revenue|crypto|invest)\b/gi, emoji: '💰' },
+      { rx: /\b(fire|hot|lit|viral|crazy|insane)\b/gi, emoji: '🔥' },
+      { rx: /\b(rocket|moon|growth|grow|launch|fast|scale)\b/gi, emoji: '🚀' },
+      { rx: /\b(shock|omg|unbelievable|impossible|no way)\b/gi, emoji: '😱' },
+      { rx: /\b(idea|think|smart|secret|strategy)\b/gi, emoji: '💡' },
+      { rx: /\b(win|winner|first|champion|victory|success)\b/gi, emoji: '🏆' },
+      { rx: /\b(energy|power|strong|action|ready)\b/gi, emoji: '⚡' },
+      { rx: /\b(warning|danger|stop|alert|mistake)\b/gi, emoji: '⚠️' },
+      { rx: /\b(love|heart|best|favorite)\b/gi, emoji: '❤️' },
+      { rx: /\b(time|clock|wait|late|early)\b/gi, emoji: '⏱️' }
+    ];
+
+    let modifiedCount = 0;
+    this.cues.forEach(cue => {
+      let text = cue.text;
+      emojiDict.forEach(({ rx, emoji }) => {
+        if (rx.test(text) && !text.includes(emoji)) {
+          text = `${text} ${emoji}`;
+          modifiedCount++;
+        }
+      });
+      cue.text = text.trim();
+    });
+    return modifiedCount;
+  },
+
+  /**
+   * Search and replace across all subtitle cues
+   */
+  searchAndReplace(searchStr, replaceStr, caseSensitive = false) {
+    if (!searchStr) return 0;
+    let count = 0;
+    const flags = caseSensitive ? 'g' : 'gi';
+    const rx = new RegExp(searchStr, flags);
+
+    this.cues.forEach(c => {
+      if (rx.test(c.text)) {
+        c.text = c.text.replace(rx, replaceStr);
+        count++;
+      }
+    });
+    return count;
+  },
+
+  /**
+   * VAD: audio energy segmenter
+   */
   async autoSegmentSpeechFromAudio(audioBuffer, videoDuration = 30) {
     const ch = audioBuffer.getChannelData(0);
     const sr = audioBuffer.sampleRate;
@@ -111,7 +252,6 @@ export const SubtitlesManager = {
     }
     if (inSpeech) segs.push({ start: +segStart.toFixed(2), end: +Math.min(videoDuration, segStart + 4).toFixed(2) });
 
-    // If no speech detected, make uniform cadence
     if (!segs.length) {
       const dur = videoDuration || 20;
       for (let t = 0.5; t < dur - 1; t += 4) {
@@ -120,8 +260,6 @@ export const SubtitlesManager = {
     }
     return segs;
   },
-
-  // ── Script Align Mode ───────────────────────────────────────────────────
 
   alignScriptToSegments(scriptText, segments) {
     const lines = scriptText.split(/\r?\n|((?<=[.!?])\s+)/)
@@ -133,8 +271,6 @@ export const SubtitlesManager = {
       this.addCue(seg.start + offset, seg.end + offset, line);
     });
   },
-
-  // ── Live Speech Recognition ─────────────────────────────────────────────
 
   startLiveTranscription({ language = 'en-US', onResult, onStatus, onComplete, onError }) {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -150,7 +286,7 @@ export const SubtitlesManager = {
     this._recognizing = true;
 
     let startEpoch = Date.now();
-    let interimMap = {}; // resultIndex → interim text
+    let interimMap = {};
 
     onStatus?.('Listening… Speak clearly into the microphone', 30);
 
@@ -190,8 +326,6 @@ export const SubtitlesManager = {
     }
   },
 
-  // ── Translation via MyMemory free API ───────────────────────────────────
-
   async translateSubtitles(targetLang = 'es') {
     if (!this.cues.length) return;
     const langPair = `en|${targetLang}`;
@@ -207,13 +341,10 @@ export const SubtitlesManager = {
       } catch (e) {
         console.warn('Translation failed for cue', cue.id, e);
       }
-      // Rate limit: 1 request per 300ms to stay within free tier
       await new Promise(res => setTimeout(res, 300));
     }
     return this.cues;
   },
-
-  // ── SRT / VTT Export & Import ─────────────────────────────────────────
 
   _srtTime(s) {
     const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60),
