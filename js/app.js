@@ -8,6 +8,8 @@ import { Timeline } from './timeline.js';
 import { SubtitlesManager } from './subtitles.js';
 import { AudioStudio } from './audio.js';
 import { ExportEngine } from './export.js';
+import { Hub } from './hub.js';
+import { Storage } from './storage.js';
 
 export const App = {
   historyStack: [],
@@ -26,6 +28,8 @@ export const App = {
     this.renderSubtitlesList();
     this.switchTab('edit');
     this.toast('⚡ VideoForge Pro Ready');
+    // Init Hub after app is ready
+    Hub.init(this).catch(err => console.warn('Hub init error:', err));
   },
 
   cacheDOM() {
@@ -408,96 +412,85 @@ export const App = {
 
   async runAutoSubtitlesEngine(mode = 'audio-detect') {
     const statusEl = document.getElementById('autoSubStatus');
-    const progEl = document.getElementById('autoSubProgress');
+    const progFill = document.getElementById('autoSubProgressFill');
+    const setStatus = (txt, pct) => {
+      if (statusEl) statusEl.textContent = txt;
+      if (progFill) progFill.style.width = (pct || 0) + '%';
+    };
 
     if (mode === 'audio-detect') {
-      if (!Player.video.src) {
-        this.toast('Upload a video first');
-        return;
-      }
-
-      statusEl.textContent = 'Extracting audio & analyzing voice activity (VAD)...';
-      progEl.style.width = '35%';
-
+      if (!Player.video?.src) { this.toast('Upload a video first'); return; }
+      setStatus('Extracting audio…', 20);
       try {
-        const response = await fetch(Player.video.src);
-        const arrayBuffer = await response.arrayBuffer();
+        const r = await fetch(Player.video.src);
+        const ab = await r.arrayBuffer();
         const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const audioBuf = await tempCtx.decodeAudioData(arrayBuffer);
-
-        statusEl.textContent = 'Detecting speech timestamps & dialogue pauses...';
-        progEl.style.width = '70%';
-
-        const segments = await SubtitlesManager.autoSegmentSpeechFromAudio(audioBuf, Timeline.duration);
-
-        // Populate cues with detected timestamps
+        setStatus('Analyzing speech energy (VAD)…', 50);
+        const audioBuf = await tempCtx.decodeAudioData(ab);
+        const segs = await SubtitlesManager.autoSegmentSpeechFromAudio(audioBuf, Timeline.duration);
         SubtitlesManager.cues = [];
-        segments.forEach((seg, idx) => {
-          SubtitlesManager.addCue(seg.start, seg.end, `Caption ${idx + 1}`);
-        });
-
-        progEl.style.width = '100%';
-        statusEl.textContent = `Generated ${segments.length} timestamped subtitle blocks!`;
+        // Create cues with EMPTY text — user fills them in
+        segs.forEach((seg) => SubtitlesManager.addCue(seg.start, seg.end, ''));
+        setStatus(`✅ Created ${segs.length} timestamp blocks. Click each in the Subtitles panel to type your text.`, 100);
         this.renderSubtitlesList();
-        this.toast(`✅ Auto-Generated ${segments.length} Subtitles`);
-        setTimeout(() => this.closeModal('modalAutoSubs'), 1200);
-
+        this.toast(`Created ${segs.length} timed blocks — type text in Subtitles panel`);
+        this.switchTab('subs');
+        setTimeout(() => this.closeModal('modalAutoSubs'), 2200);
       } catch (e) {
-        statusEl.textContent = 'Generated uniform subtitle cadence.';
-        progEl.style.width = '100%';
-        const dur = Timeline.duration || 12;
+        setStatus('Audio decode failed — creating uniform timing blocks instead.', 100);
         SubtitlesManager.cues = [];
-        for (let t = 0.5; t < dur - 1; t += 3.5) {
-          SubtitlesManager.addCue(t, t + 3.0, `Subtitle cue`);
-        }
+        const dur = Timeline.duration || 20;
+        for (let t = 0.5; t < dur - 1; t += 4) SubtitlesManager.addCue(t, Math.min(dur, t + 3.5), '');
         this.renderSubtitlesList();
-        setTimeout(() => this.closeModal('modalAutoSubs'), 1200);
+        this.switchTab('subs');
+        setTimeout(() => this.closeModal('modalAutoSubs'), 2000);
       }
 
     } else if (mode === 'script-align') {
-      const script = document.getElementById('autoSubScriptInput')?.value;
-      if (!script || !script.trim()) {
-        this.toast('Enter or paste script text first');
-        return;
-      }
-
-      const dur = Timeline.duration || 15;
+      const script = document.getElementById('autoSubScriptInput')?.value?.trim();
+      if (!script) { this.toast('Paste your script text first'); return; }
+      setStatus('Aligning script to timeline…', 40);
+      const dur = Timeline.duration || 20;
       const lines = script.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
-      const step = Math.max(1.5, dur / (lines.length || 1));
-
+      const step = Math.max(1.5, dur / lines.length);
       SubtitlesManager.cues = [];
-      lines.forEach((line, idx) => {
-        const start = idx * step;
-        const end = Math.min(dur, start + step - 0.2);
-        SubtitlesManager.addCue(start, end, line);
+      lines.forEach((line, i) => {
+        const start = i * step;
+        SubtitlesManager.addCue(start, Math.min(dur, start + step - 0.15), line);
       });
-
+      setStatus(`✅ Aligned ${lines.length} lines across ${dur.toFixed(1)}s`, 100);
       this.renderSubtitlesList();
-      this.toast(`✅ Aligned ${lines.length} captions`);
-      this.closeModal('modalAutoSubs');
+      this.toast(`✅ Aligned ${lines.length} subtitle lines`);
+      this.switchTab('subs');
+      setTimeout(() => this.closeModal('modalAutoSubs'), 1500);
 
-    } else {
-      // Live microphone mode
+    } else if (mode === 'live-mic') {
       const lang = document.getElementById('autoSubLangSelect')?.value || 'en-US';
-      statusEl.textContent = 'Listening to speech via microphone...';
-      progEl.style.width = '50%';
-
+      setStatus('Listening… Speak clearly into your microphone.', 50);
       SubtitlesManager.startLiveTranscription({
         language: lang,
-        onProgress: () => this.renderSubtitlesList(),
-        onComplete: (cues) => {
-          progEl.style.width = '100%';
-          statusEl.textContent = `Recorded ${cues.length} spoken cues!`;
+        onResult: (cues) => {
+          setStatus(`Transcribed ${cues.length} cue(s)…`, 70);
           this.renderSubtitlesList();
-          this.toast(`✅ Captured ${cues.length} Subtitles`);
-          setTimeout(() => this.closeModal('modalAutoSubs'), 1200);
+        },
+        onStatus: (msg, pct) => setStatus(msg, pct),
+        onComplete: (cues) => {
+          setStatus(`✅ Captured ${cues.length} spoken subtitle(s)`, 100);
+          this.renderSubtitlesList();
+          this.toast(`Captured ${cues.length} subtitles`);
+          setTimeout(() => this.closeModal('modalAutoSubs'), 1500);
         },
         onError: (err) => {
-          statusEl.textContent = 'Voice capture ended or unavailable.';
-          this.renderSubtitlesList();
+          setStatus(`Error: ${err}`, 0);
+          this.toast('⚠️ ' + err);
         }
       });
     }
+  },
+
+  stopLiveMic() {
+    SubtitlesManager.stopLiveTranscription();
+    this.toast('Stopped live mic transcription');
   },
 
   addSubtitleAtPlayhead() {
@@ -816,3 +809,5 @@ window.Timeline = Timeline;
 window.SubtitlesManager = SubtitlesManager;
 window.AudioStudio = AudioStudio;
 window.ExportEngine = ExportEngine;
+window.Hub = Hub;
+window.Storage = Storage;

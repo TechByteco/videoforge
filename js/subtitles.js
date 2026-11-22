@@ -1,336 +1,256 @@
 /**
- * VideoForge Pro - AI Subtitles, Auto-Generator, Typography, Motion Keyframes & Language Translator
- * Clean, production-ready, zero-promotional subtitle suite.
+ * VideoForge Pro - Subtitle Engine
+ * Real speech recognition (Web Speech API), script-align, VAD segments, SRT/VTT export, translation via MyMemory API.
  */
 
 export const SubtitlesManager = {
-  // Subtitle cues start EMPTY (no promotional default text)
   cues: [],
-  
-  // Available Typography Fonts
+
   fonts: [
-    { id: 'Anton', name: 'Anton (Viral Impact / TikTok)' },
-    { id: 'Syne', name: 'Syne (Bold Modern Display)' },
-    { id: 'Bebas Neue', name: 'Bebas Neue (Cinematic Condensed)' },
-    { id: 'Montserrat', name: 'Montserrat (Clean Editorial)' },
-    { id: 'Instrument Sans', name: 'Instrument Sans (Contemporary)' },
-    { id: 'DM Mono', name: 'DM Mono (Technical Monospace)' },
-    { id: 'Playfair Display', name: 'Playfair (Luxury Serif)' },
-    { id: 'Orbitron', name: 'Orbitron (Futuristic Sci-Fi)' },
-    { id: 'Caveat', name: 'Caveat (Handwritten Script)' }
+    { id: 'Anton', name: 'Anton — Viral Impact' },
+    { id: 'Syne', name: 'Syne — Bold Modern' },
+    { id: 'Bebas Neue', name: 'Bebas Neue — Cinematic' },
+    { id: 'Montserrat', name: 'Montserrat — Editorial' },
+    { id: 'Instrument Sans', name: 'Instrument Sans — Clean' },
+    { id: 'DM Mono', name: 'DM Mono — Technical' },
+    { id: 'Playfair Display', name: 'Playfair — Luxury Serif' },
+    { id: 'Orbitron', name: 'Orbitron — Futuristic' },
+    { id: 'Caveat', name: 'Caveat — Handwritten' }
   ],
 
-  // Motion Keyframe Animations
   motionPresets: [
     { id: 'pop-bounce', name: 'TikTok Pop-Up Bounce' },
-    { id: 'fade-slide', name: 'Cinematic Fade Slide Up' },
+    { id: 'fade-slide', name: 'Cinematic Fade Slide' },
     { id: 'karaoke', name: 'Karaoke Word Highlight' },
-    { id: 'neon-pulse', name: 'Neon Cyber Pulse' },
-    { id: 'glitch-shake', name: 'Digital Glitch Shake' },
+    { id: 'neon-pulse', name: 'Neon Pulse' },
+    { id: 'glitch-shake', name: 'Glitch Shake' },
     { id: 'none', name: 'Static Clean' }
   ],
 
-  // Complete Style Settings
   style: {
     font: 'Anton',
-    size: 34,
+    size: 36,
     weight: '900',
     color: '#e8ff47',
     strokeColor: '#000000',
     strokeWidth: 4,
     showBadge: true,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    backgroundColor: 'rgba(0,0,0,0.85)',
     positionY: 0.84,
     motion: 'pop-bounce',
     burnIn: true
   },
 
-  isRecognizing: false,
-  recognitionInstance: null,
+  _recognitionInst: null,
+  _recognizing: false,
+  _cueIdCounter: 1,
 
-  getActiveCue(time) {
-    if (!this.cues || !this.cues.length) return null;
-    return this.cues.find(c => time >= c.start && time <= c.end);
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  _id() { return this._cueIdCounter++; },
+
+  getActiveCue(t) {
+    if (!this.cues.length) return null;
+    return this.cues.find(c => t >= c.start && t <= c.end) || null;
   },
 
   addCue(start, end, text) {
-    if (!text || !text.trim()) return null;
-    const id = Date.now() + Math.floor(Math.random() * 1000);
-    const cue = {
-      id,
-      start: Math.max(0, parseFloat(parseFloat(start).toFixed(2))),
-      end: Math.max(0.1, parseFloat(parseFloat(end).toFixed(2))),
-      text: text.trim()
-    };
+    const cue = { id: this._id(), start: +start.toFixed(2), end: +end.toFixed(2), text: (text || '').trim() };
     this.cues.push(cue);
     this.cues.sort((a, b) => a.start - b.start);
-    return id;
+    return cue.id;
   },
 
-  updateCue(id, newText, newStart, newEnd) {
-    const cue = this.cues.find(c => c.id === id);
-    if (cue) {
-      if (newText !== undefined) cue.text = newText.trim();
-      if (newStart !== undefined) cue.start = parseFloat(parseFloat(newStart).toFixed(2));
-      if (newEnd !== undefined) cue.end = parseFloat(parseFloat(newEnd).toFixed(2));
-      this.cues.sort((a, b) => a.start - b.start);
+  updateCue(id, text, start, end) {
+    const c = this.cues.find(c => c.id === id);
+    if (!c) return;
+    if (text !== undefined) c.text = text.trim();
+    if (start !== undefined) c.start = +parseFloat(start).toFixed(2);
+    if (end !== undefined) c.end = +parseFloat(end).toFixed(2);
+    this.cues.sort((a, b) => a.start - b.start);
+  },
+
+  deleteCue(id) { this.cues = this.cues.filter(c => c.id !== id); },
+  clearAllCues() { this.cues = []; },
+
+  // ── VAD: audio energy segmenter (purely for timestamp detection) ─────────
+
+  async autoSegmentSpeechFromAudio(audioBuffer, videoDuration = 30) {
+    const ch = audioBuffer.getChannelData(0);
+    const sr = audioBuffer.sampleRate;
+    const WIN = Math.floor(sr * 0.08); // 80ms window
+    const energies = [];
+    for (let i = 0; i < ch.length - WIN; i += WIN) {
+      let s = 0;
+      for (let j = 0; j < WIN; j++) s += ch[i + j] * ch[i + j];
+      energies.push({ t: i / sr, e: Math.sqrt(s / WIN) });
     }
-  },
+    const avg = energies.reduce((a, p) => a + p.e, 0) / (energies.length || 1);
+    const threshold = Math.max(0.012, avg * 1.3);
 
-  deleteCue(id) {
-    this.cues = this.cues.filter(c => c.id !== id);
-  },
-
-  clearAllCues() {
-    this.cues = [];
-  },
-
-  /**
-   * Real Voice Activity Detection (VAD) Speech Auto-Segmenter
-   * Analyzes audio buffer waveform energy to automatically detect spoken phrases and timestamps
-   */
-  async autoSegmentSpeechFromAudio(audioBuffer, targetDuration = 10) {
-    if (!audioBuffer) return [];
-
-    const rawData = audioBuffer.getChannelData(0);
-    const sampleRate = audioBuffer.sampleRate;
-    const windowSize = Math.floor(sampleRate * 0.1); // 100ms window
-    const energyProfile = [];
-
-    // Calculate RMS energy per window
-    for (let i = 0; i < rawData.length - windowSize; i += windowSize) {
-      let sum = 0;
-      for (let j = 0; j < windowSize; j++) {
-        sum += rawData[i + j] * rawData[i + j];
-      }
-      energyProfile.push({
-        time: i / sampleRate,
-        energy: Math.sqrt(sum / windowSize)
-      });
-    }
-
-    // Dynamic threshold: 25% above average energy
-    const avgEnergy = energyProfile.reduce((acc, p) => acc + p.energy, 0) / (energyProfile.length || 1);
-    const threshold = Math.max(0.015, avgEnergy * 1.25);
-
-    const segments = [];
-    let inSpeech = false;
-    let segStart = 0;
-
-    for (let i = 0; i < energyProfile.length; i++) {
-      const p = energyProfile[i];
-      if (!inSpeech && p.energy > threshold) {
-        inSpeech = true;
-        segStart = p.time;
-      } else if (inSpeech && p.energy < threshold) {
-        const segEnd = p.time;
-        // Keep segments that are between 0.8s and 5.0s
-        if (segEnd - segStart >= 0.8) {
-          segments.push({
-            start: parseFloat(segStart.toFixed(2)),
-            end: parseFloat(Math.min(segEnd + 0.3, segStart + 5.0).toFixed(2))
-          });
+    const segs = [];
+    let inSpeech = false, segStart = 0;
+    for (const p of energies) {
+      if (!inSpeech && p.e > threshold) { inSpeech = true; segStart = p.t; }
+      else if (inSpeech && p.e < threshold) {
+        const segEnd = p.t;
+        if (segEnd - segStart >= 0.5) {
+          segs.push({ start: +segStart.toFixed(2), end: +Math.min(segEnd + 0.25, segStart + 6).toFixed(2) });
         }
         inSpeech = false;
       }
     }
+    if (inSpeech) segs.push({ start: +segStart.toFixed(2), end: +Math.min(videoDuration, segStart + 4).toFixed(2) });
 
-    // If audio is quiet or no speech burst detected, create uniform 3s cadence
-    if (segments.length === 0) {
-      const dur = targetDuration || 12;
-      for (let t = 0.5; t < dur - 1; t += 3.5) {
-        segments.push({
-          start: parseFloat(t.toFixed(2)),
-          end: parseFloat(Math.min(dur, t + 3.0).toFixed(2))
-        });
+    // If no speech detected, make uniform cadence
+    if (!segs.length) {
+      const dur = videoDuration || 20;
+      for (let t = 0.5; t < dur - 1; t += 4) {
+        segs.push({ start: +t.toFixed(2), end: +(Math.min(dur, t + 3.5)).toFixed(2) });
       }
     }
-
-    return segments;
+    return segs;
   },
 
-  /**
-   * Auto-Aligns an imported or typed text script to detected audio speech segments
-   */
-  alignScriptToSpeechSegments(scriptText, speechSegments) {
-    if (!scriptText || !speechSegments || !speechSegments.length) return;
+  // ── Script Align Mode ───────────────────────────────────────────────────
 
-    // Split text by lines or sentence boundaries
-    const lines = scriptText
-      .split(/\r?\n|(?<=[.!?])\s+/)
-      .map(l => l.trim())
-      .filter(l => l.length > 0);
-
+  alignScriptToSegments(scriptText, segments) {
+    const lines = scriptText.split(/\r?\n|((?<=[.!?])\s+)/)
+      .map(l => (l || '').trim()).filter(l => l.length > 2);
     this.cues = [];
-
-    lines.forEach((line, idx) => {
-      const seg = speechSegments[idx % speechSegments.length];
-      const start = seg.start + (Math.floor(idx / speechSegments.length) * 0.2);
-      const end = seg.end + (Math.floor(idx / speechSegments.length) * 0.2);
-      this.addCue(start, end, line);
+    lines.forEach((line, i) => {
+      const seg = segments[i % segments.length];
+      const offset = Math.floor(i / segments.length) * 0.1;
+      this.addCue(seg.start + offset, seg.end + offset, line);
     });
   },
 
-  /**
-   * Live Speech Recognition Transcriber (Web Speech API)
-   */
-  startLiveTranscription({ language = 'en-US', onProgress, onStep, onComplete, onError }) {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      if (onError) onError(new Error("Web Speech API is not supported in this browser. Please use Chrome or Edge."));
+  // ── Live Speech Recognition ─────────────────────────────────────────────
+
+  startLiveTranscription({ language = 'en-US', onResult, onStatus, onComplete, onError }) {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      onError?.('Web Speech API not supported. Use Chrome or Edge.');
       return;
     }
+    const r = new SR();
+    r.continuous = true;
+    r.interimResults = true;
+    r.lang = language;
+    this._recognitionInst = r;
+    this._recognizing = true;
 
-    try {
-      this.recognitionInstance = new SpeechRecognition();
-      this.recognitionInstance.continuous = true;
-      this.recognitionInstance.interimResults = true;
-      this.recognitionInstance.lang = language;
+    let startEpoch = Date.now();
+    let interimMap = {}; // resultIndex → interim text
 
-      this.isRecognizing = true;
-      let startTime = Date.now();
+    onStatus?.('Listening… Speak clearly into the microphone', 30);
 
-      if (onStep) onStep("Listening to speech input...", 30);
-
-      this.recognitionInstance.onresult = (event) => {
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            const transcript = event.results[i][0].transcript.trim();
-            if (transcript) {
-              const elapsedSec = (Date.now() - startTime) / 1000;
-              const start = Math.max(0, elapsedSec - 3.2);
-              this.addCue(start, elapsedSec, transcript);
-              if (onProgress) onProgress(transcript);
-            }
-          }
+    r.onresult = (e) => {
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript.trim();
+        if (e.results[i].isFinal) {
+          const elapsed = (Date.now() - startEpoch) / 1000;
+          const start = Math.max(0, elapsed - 3.5);
+          this.addCue(start, elapsed, t);
+          onResult?.(this.cues);
+          delete interimMap[i];
+        } else {
+          interimMap[i] = t;
+          onStatus?.('Hearing: ' + Object.values(interimMap).join(' '), 60);
         }
-      };
+      }
+    };
 
-      this.recognitionInstance.onerror = (e) => {
-        this.isRecognizing = false;
-        if (onError) onError(e);
-      };
+    r.onerror = (e) => {
+      this._recognizing = false;
+      onError?.(e.error === 'no-speech' ? 'No speech detected. Check microphone.' : e.error);
+    };
 
-      this.recognitionInstance.onend = () => {
-        this.isRecognizing = false;
-        if (onComplete) onComplete(this.cues);
-      };
+    r.onend = () => {
+      this._recognizing = false;
+      onComplete?.(this.cues);
+    };
 
-      this.recognitionInstance.start();
-
-    } catch (e) {
-      this.isRecognizing = false;
-      if (onError) onError(e);
-    }
+    r.start();
   },
 
   stopLiveTranscription() {
-    if (this.recognitionInstance && this.isRecognizing) {
-      this.recognitionInstance.stop();
-      this.isRecognizing = false;
+    if (this._recognitionInst && this._recognizing) {
+      this._recognitionInst.stop();
+      this._recognizing = false;
     }
   },
 
-  /**
-   * Video Language Translator: Translates active subtitle cues
-   */
+  // ── Translation via MyMemory free API ───────────────────────────────────
+
   async translateSubtitles(targetLang = 'es') {
-    const commonVocabulary = {
-      es: { 'hello': 'hola', 'action': 'acción', 'scene': 'escena', 'video': 'video', 'music': 'música', 'start': 'inicio', 'end': 'fin' },
-      fr: { 'hello': 'bonjour', 'action': 'action', 'scene': 'scène', 'video': 'vidéo', 'music': 'musique', 'start': 'début', 'end': 'fin' },
-      de: { 'hello': 'hallo', 'action': 'aktion', 'scene': 'szene', 'video': 'video', 'music': 'musik', 'start': 'anfang', 'end': 'ende' },
-      ja: { 'hello': 'こんにちは', 'action': 'アクション', 'scene': 'シーン', 'video': 'ビデオ', 'music': '音楽', 'start': 'スタート', 'end': '終わり' },
-      hi: { 'hello': 'नमस्ते', 'action': 'एक्शन', 'scene': 'दृश्य', 'video': 'वीडियो', 'music': 'संगीत', 'start': 'शुरुआत', 'end': 'समाप्त' },
-      ar: { 'hello': 'مرحبا', 'action': 'حركة', 'scene': 'مشهد', 'video': 'فيديو', 'music': 'موسيقى', 'start': 'بداية', 'end': 'نهاية' }
-    };
-
-    const langTags = { es: 'ES', fr: 'FR', de: 'DE', ja: 'JP', hi: 'HI', ar: 'AR', pt: 'PT', it: 'IT' };
-    const prefix = `[${langTags[targetLang] || targetLang.toUpperCase()}] `;
-
-    this.cues.forEach(cue => {
-      // Remove any previous language tags
-      let cleanText = cue.text.replace(/^\[[A-Z]{2}\]\s*/, '');
-      cue.text = `${prefix}${cleanText}`;
-    });
-
+    if (!this.cues.length) return;
+    const langPair = `en|${targetLang}`;
+    for (const cue of this.cues) {
+      const cleanText = cue.text.replace(/^\[[A-Z]{2,3}\]\s*/, '');
+      try {
+        const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(cleanText)}&langpair=${encodeURIComponent(langPair)}`;
+        const r = await fetch(url);
+        const data = await r.json();
+        if (data.responseStatus === 200 && data.responseData?.translatedText) {
+          cue.text = data.responseData.translatedText;
+        }
+      } catch (e) {
+        console.warn('Translation failed for cue', cue.id, e);
+      }
+      // Rate limit: 1 request per 300ms to stay within free tier
+      await new Promise(res => setTimeout(res, 300));
+    }
     return this.cues;
   },
 
+  // ── SRT / VTT Export & Import ─────────────────────────────────────────
+
+  _srtTime(s) {
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60),
+      sec = Math.floor(s % 60), ms = Math.floor((s % 1) * 1000);
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')},${String(ms).padStart(3,'0')}`;
+  },
+
+  _vttTime(s) { return this._srtTime(s).replace(',', '.'); },
+
   exportSRT() {
-    let srt = '';
-    this.cues.forEach((c, idx) => {
-      srt += `${idx + 1}\n`;
-      srt += `${this.formatSRTTime(c.start)} --> ${this.formatSRTTime(c.end)}\n`;
-      srt += `${c.text}\n\n`;
-    });
-    this.downloadFile('subtitles.srt', srt, 'text/plain');
+    const srt = this.cues.map((c, i) =>
+      `${i + 1}\n${this._srtTime(c.start)} --> ${this._srtTime(c.end)}\n${c.text}\n`
+    ).join('\n');
+    this._dl('subtitles.srt', srt, 'text/plain');
   },
 
   exportVTT() {
-    let vtt = 'WEBVTT\n\n';
-    this.cues.forEach((c, idx) => {
-      vtt += `${idx + 1}\n`;
-      vtt += `${this.formatVTTTime(c.start)} --> ${this.formatVTTTime(c.end)}\n`;
-      vtt += `${c.text}\n\n`;
-    });
-    this.downloadFile('subtitles.vtt', vtt, 'text/vtt');
+    const vtt = 'WEBVTT\n\n' + this.cues.map((c, i) =>
+      `${i + 1}\n${this._vttTime(c.start)} --> ${this._vttTime(c.end)}\n${c.text}\n`
+    ).join('\n');
+    this._dl('subtitles.vtt', vtt, 'text/vtt');
   },
 
-  importSRT(srtString) {
-    const blocks = srtString.trim().split(/\n\s*\n/);
+  importSRT(text) {
     this.cues = [];
-    
-    blocks.forEach((b, idx) => {
-      const lines = b.split('\n');
-      if (lines.length >= 2) {
-        const timeLine = lines[1].includes('-->') ? lines[1] : lines[0];
-        const textLines = lines.slice(lines.indexOf(timeLine) + 1).join(' ').trim();
-        
-        const [startStr, endStr] = timeLine.split('-->').map(s => s.trim());
-        if (startStr && endStr && textLines) {
-          const start = this.parseSRTTime(startStr);
-          const end = this.parseSRTTime(endStr);
-          if (!isNaN(start) && !isNaN(end)) {
-            this.cues.push({ id: idx + 1, start, end, text: textLines });
-          }
-        }
-      }
+    text.trim().split(/\n\s*\n/).forEach(block => {
+      const lines = block.split('\n');
+      const tl = lines.find(l => l.includes('-->'));
+      if (!tl) return;
+      const [a, b] = tl.split('-->').map(s => s.trim());
+      const parse = (str) => {
+        const [h, m, sm] = str.split(':');
+        const [s, ms] = (sm || '0,0').replace('.', ',').split(',');
+        return +h * 3600 + +m * 60 + +s + +(ms || 0) / 1000;
+      };
+      const textLines = lines.slice(lines.indexOf(tl) + 1).join(' ').trim();
+      if (a && b && textLines) this.addCue(parse(a), parse(b), textLines);
     });
   },
 
-  formatSRTTime(seconds) {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = Math.floor(seconds % 60);
-    const ms = Math.floor((seconds % 1) * 1000);
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
-  },
-
-  formatVTTTime(seconds) {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = Math.floor(seconds % 60);
-    const ms = Math.floor((seconds % 1) * 1000);
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
-  },
-
-  parseSRTTime(timeStr) {
-    const parts = timeStr.replace(',', '.').split(':');
-    if (parts.length === 3) {
-      return parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
-    }
-    return 0;
-  },
-
-  downloadFile(filename, content, type) {
-    const blob = new Blob([content], { type });
-    const url = URL.createObjectURL(blob);
+  _dl(name, text, mime) {
     const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
+    a.href = URL.createObjectURL(new Blob([text], { type: mime }));
+    a.download = name;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
   }
 };

@@ -25,6 +25,17 @@
       <div class="badge">STUDIO v2.1</div>
     </div>
 
+    <div class="hub-nav-tabs">
+      <button class="hub-nav-btn on" id="navBtnHub">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Projects Hub
+      </button>
+      <button class="hub-nav-btn" id="navBtnEditor">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Studio Editor
+      </button>
+    </div>
+
     <!-- Center Navigation Tabs -->
     <div class="ntabs">
       <button class="nt on" data-tab="edit" onclick="App.switchTab('edit')">
@@ -70,8 +81,69 @@
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
         Export Video
       </button>
+      <button class="tbb" id="navBtnSaveHub" title="Save current project to Hub" style="background:rgba(232,255,71,.1);color:var(--acc);border:1px solid rgba(232,255,71,.25)">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Save to Hub
+      </button>
     </div>
   </nav>
+
+  <!-- PROJECT HUB SPACE -->
+  <div id="project-hub-space" style="display:flex;flex-direction:column;flex:1;overflow-y:auto;background:var(--bg)">
+    <!-- Hub Hero -->
+    <div class="hub-hero">
+      <h1>⚡ VideoForge Studio</h1>
+      <p>Your AI-powered browser video studio. Open a project below or start fresh.</p>
+      <div class="hub-cta-row">
+        <button class="hub-cta-btn primary" id="hubBtnNewBlank">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          New Blank Project
+        </button>
+        <button class="hub-cta-btn secondary" id="hubBtnUploadStart">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+          Upload &amp; Edit Video
+        </button>
+        <button class="hub-cta-btn ghost" id="hubBtnImportProject">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Import .videoforge
+        </button>
+      </div>
+    </div>
+
+    <!-- Recent Projects -->
+    <div class="hub-section">
+      <div class="hub-section-header">
+        <h2>📁 Recent Projects <span id="hubProjectCount"></span></h2>
+      </div>
+      <div class="hub-projects-grid" id="hubProjectsGrid">
+        <div class="hub-empty"><div style="font-size:40px;margin-bottom:12px">📂</div><h4>Loading…</h4></div>
+      </div>
+    </div>
+
+    <!-- Media Gallery Vault -->
+    <div class="hub-section" style="border-top:1px solid var(--bdr)">
+      <div class="hub-section-header">
+        <h2>🎞️ Media Gallery Vault</h2>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div class="hub-filter-pills">
+            <button class="hub-filter-pill active" data-cat="all">All</button>
+            <button class="hub-filter-pill" data-cat="video">Video</button>
+            <button class="hub-filter-pill" data-cat="audio">Audio</button>
+            <button class="hub-filter-pill" data-cat="image">Images</button>
+          </div>
+          <button class="hub-cta-btn secondary" id="hubBtnUploadGallery" style="padding:6px 14px;font-size:11px">
+            + Add Assets
+          </button>
+        </div>
+      </div>
+      <div class="hub-gallery-grid" id="hubGalleryGrid">
+        <div class="hub-empty" style="grid-column:1/-1"><div style="font-size:40px;margin-bottom:12px">🎞️</div><h4>Loading…</h4></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EDITOR SPACE (hidden by default, shown when entering Studio) -->
+  <div id="editor-space" style="display:none;flex-direction:column;flex:1;overflow:hidden">
 
   <!-- APPLICATION CONTAINER -->
   <div class="app-container">
@@ -639,12 +711,15 @@
 
     </div>
   </div>
+  </div><!-- end editor-space -->
 
   <!-- HIDDEN FILE INPUTS FOR ACTIONS -->
-  <input type="file" id="fileInput" accept="video/*,audio/*,image/*">
-  <input type="file" id="watermarkInput" accept="image/*">
-  <input type="file" id="subtitleFileInput" accept=".srt,.vtt,text/plain">
-  <input type="file" id="projectFileInput" accept=".videoforge,application/json">
+  <input type="file" id="fileInput" accept="video/*,audio/*,image/*" style="display:none">
+  <input type="file" id="watermarkInput" accept="image/*" style="display:none">
+  <input type="file" id="subtitleFileInput" accept=".srt,.vtt,text/plain" style="display:none">
+  <input type="file" id="projectFileInput" accept=".videoforge,application/json" style="display:none">
+  <input type="file" id="hubFileInput" accept="video/*,audio/*,image/*" style="display:none">
+  <input type="file" id="hubGalleryFileInput" accept="video/*,audio/*,image/*" multiple style="display:none">
 
   <!-- AUTO SUBTITLES GENERATOR MODAL -->
   <div class="modal-backdrop" id="modalAutoSubs">
@@ -653,53 +728,80 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
       </div>
       <div class="modal-title">Auto-Generate Subtitles</div>
-      <div class="modal-sub" id="autoSubStatus">Choose how you want to generate timestamped captions</div>
 
-      <!-- Mode 1: Video Audio Saliency VAD -->
-      <div style="background:var(--sur3);padding:12px;border-radius:var(--radius-sm);border:1px solid var(--bdr)">
-        <div style="font-size:12px;font-weight:700;color:var(--acc);margin-bottom:4px">Option 1: Video Audio Waveform (VAD)</div>
-        <div style="font-size:11px;color:var(--txt-dim);margin-bottom:8px">Analyzes spoken bursts &amp; pauses directly in your video file to auto-create subtitle cues.</div>
-        <button class="btn-upload" style="width:100%;font-size:12px;padding:8px" onclick="App.runAutoSubtitlesEngine('audio-detect')">
-          ⚡ Detect Audio Speech Timings
-        </button>
-      </div>
+      <div class="modal-body">
+        <p style="color:var(--txt-dim);font-size:12px;margin-bottom:16px;line-height:1.6">
+          Choose how to generate subtitle timestamps. After generation, fill in your text in the Subtitles panel.
+        </p>
 
-      <!-- Mode 2: Paste Script & Auto-Align -->
-      <div style="background:var(--sur3);padding:12px;border-radius:var(--radius-sm);border:1px solid var(--bdr)">
-        <div style="font-size:12px;font-weight:700;color:var(--acc2);margin-bottom:4px">Option 2: Paste Script / Lyrics &amp; Auto-Align</div>
-        <div style="font-size:11px;color:var(--txt-dim);margin-bottom:6px">Paste sentences below; they will be aligned to your video timeline.</div>
-        <textarea id="autoSubScriptInput" placeholder="Paste your script, lines or lyrics here..." style="width:100%;height:60px;background:var(--sur2);border:1px solid var(--bdr);border-radius:4px;color:var(--txt);padding:6px;font-size:11px;outline:none"></textarea>
-        <button class="btn-preset" style="width:100%;margin-top:6px;padding:8px" onclick="App.runAutoSubtitlesEngine('script-align')">
-          Align Script to Video
-        </button>
-      </div>
-
-      <!-- Mode 3: Live Microphone Speech Recognition -->
-      <div style="background:var(--sur3);padding:12px;border-radius:var(--radius-sm);border:1px solid var(--bdr)">
-        <div style="font-size:12px;font-weight:700;color:var(--ok);margin-bottom:4px">Option 3: Live Speech Recognition</div>
-        <div style="font-size:11px;color:var(--txt-dim);margin-bottom:6px">Transcribe speech in real-time as you speak.</div>
-        <div class="control-row" style="margin-bottom:6px">
-          <select id="autoSubLangSelect">
-            <option value="en-US">English (United States)</option>
-            <option value="en-GB">English (United Kingdom)</option>
-            <option value="es-ES">Spanish (Español)</option>
-            <option value="fr-FR">French (Français)</option>
-            <option value="de-DE">German (Deutsch)</option>
-            <option value="ja-JP">Japanese (日本語)</option>
-            <option value="hi-IN">Hindi (हिन्दी)</option>
-            <option value="ar-SA">Arabic (العربية)</option>
-          </select>
+        <!-- Mode 1: VAD Audio Detection -->
+        <div class="sub-mode-card" id="subModeVAD" style="margin-bottom:10px">
+          <div class="sub-mode-header">
+            <span class="sub-mode-icon">🎙️</span>
+            <div>
+              <div class="sub-mode-title">Audio Speech Detection (VAD)</div>
+              <div class="sub-mode-desc">Detects speech pauses in the video audio to auto-create timed cue blocks</div>
+            </div>
+          </div>
+          <button class="btn-sub-gen" onclick="App.runAutoSubtitlesEngine('audio-detect')">
+            Detect from Video Audio →
+          </button>
         </div>
-        <button class="btn-preset" style="width:100%;padding:8px" onclick="App.runAutoSubtitlesEngine('mic-listen')">
-          🎙️ Listen &amp; Transcribe
-        </button>
+
+        <!-- Mode 2: Script Align -->
+        <div class="sub-mode-card" id="subModeScript" style="margin-bottom:10px">
+          <div class="sub-mode-header">
+            <span class="sub-mode-icon">📄</span>
+            <div>
+              <div class="sub-mode-title">Script / Lyrics Alignment</div>
+              <div class="sub-mode-desc">Paste your script below and it will be timed across the video duration</div>
+            </div>
+          </div>
+          <textarea id="autoSubScriptInput" rows="5" placeholder="Paste your script text here, one line per subtitle..." style="width:100%;background:var(--sur2);border:1px solid var(--bdr);border-radius:8px;padding:10px;color:var(--txt);font-size:12px;font-family:inherit;margin-top:8px;resize:vertical"></textarea>
+          <button class="btn-sub-gen" onclick="App.runAutoSubtitlesEngine('script-align')" style="margin-top:8px">
+            Align Script to Timeline →
+          </button>
+        </div>
+
+        <!-- Mode 3: Live Mic -->
+        <div class="sub-mode-card">
+          <div class="sub-mode-header">
+            <span class="sub-mode-icon">🎤</span>
+            <div>
+              <div class="sub-mode-title">Live Microphone Transcription</div>
+              <div class="sub-mode-desc">Speak into your mic — Chrome/Edge will transcribe in real-time</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+            <select id="autoSubLangSelect" style="flex:1;background:var(--sur2);border:1px solid var(--bdr);border-radius:7px;padding:7px 10px;color:var(--txt);font-size:12px">
+              <option value="en-US">English (US)</option>
+              <option value="en-GB">English (UK)</option>
+              <option value="es-ES">Spanish</option>
+              <option value="fr-FR">French</option>
+              <option value="de-DE">German</option>
+              <option value="hi-IN">Hindi</option>
+              <option value="ar-SA">Arabic</option>
+              <option value="ja-JP">Japanese</option>
+              <option value="pt-BR">Portuguese (BR)</option>
+              <option value="it-IT">Italian</option>
+              <option value="zh-CN">Chinese (Simplified)</option>
+              <option value="ko-KR">Korean</option>
+            </select>
+            <button class="btn-sub-gen" onclick="App.runAutoSubtitlesEngine('live-mic')" style="flex:1">Start Listening →</button>
+            <button class="btn-sub-stop" onclick="App.stopLiveMic()">■ Stop</button>
+          </div>
+        </div>
+
+        <!-- Progress -->
+        <div style="margin-top:16px">
+          <div id="autoSubProgress" style="height:4px;background:var(--bdr);border-radius:4px;overflow:hidden">
+            <div id="autoSubProgressFill" style="height:100%;background:var(--acc);width:0%;transition:width .4s"></div>
+          </div>
+          <div id="autoSubStatus" style="margin-top:8px;font-size:11px;color:var(--txt-dim);min-height:18px"></div>
+        </div>
       </div>
 
-      <div class="progress-track">
-        <div class="progress-bar" id="autoSubProgress"></div>
-      </div>
-
-      <button class="btn-secondary" style="align-self:center" onclick="App.closeModal('modalAutoSubs')">
+      <button class="btn-secondary" style="align-self:center;margin-top:12px" onclick="App.closeModal('modalAutoSubs')">
         Close
       </button>
     </div>
