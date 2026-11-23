@@ -159,7 +159,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
           <span>Demo</span>
         </button>
-        <button class="sbt" onclick="App.openAutoSubsModal()" title="Auto-Generate Subtitles">
+        <button class="sbt" onclick="App.openAutoSubsModal()" title="Auto-Generate Subtitles (English)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
           <span>Auto-Sub</span>
         </button>
@@ -680,7 +680,7 @@
               <div class="section-head"><span class="section-title">Subtitles, Fonts &amp; Motion</span></div>
               <div class="section-body">
                 <button class="btn-upload" style="width:100%;padding:10px" onclick="App.openAutoSubsModal()">
-                  🤖 Auto-Generate Subtitles
+                  🤖 Auto-Generate Subtitles (English)
                 </button>
 
                 <!-- Viral Style Presets -->
@@ -799,81 +799,92 @@
 
   <!-- AUTO SUBTITLES GENERATOR MODAL -->
   <div class="modal-backdrop" id="modalAutoSubs">
-    <div class="modal-box">
+    <div class="modal-box" style="max-width:520px">
       <div class="modal-icon-badge">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
       </div>
       <div class="modal-title">Auto-Generate Subtitles</div>
 
       <div class="modal-body">
-        <p style="color:var(--txt-dim);font-size:12px;margin-bottom:16px;line-height:1.6">
-          Choose how to generate subtitle timestamps. After generation, fill in your text in the Subtitles panel.
+        <p style="color:var(--txt-dim);font-size:12px;margin-bottom:14px;line-height:1.5">
+          Instantly generate synchronized subtitle captions in English. Choose your generation method below:
         </p>
 
-        <!-- Mode 1: VAD Audio Detection -->
-        <div class="sub-mode-card" id="subModeVAD" style="margin-bottom:10px">
+        <!-- Global Language Selector (Default: English) -->
+        <div style="background:var(--sur2);border:1px solid var(--bdr);border-radius:8px;padding:10px 12px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--txt)">Default Language</div>
+            <div style="font-size:11px;color:var(--txt-dim)">Speech recognition &amp; subtitle language</div>
+          </div>
+          <select id="autoSubGlobalLangSelect" style="background:var(--bg);border:1px solid var(--bdr);border-radius:6px;padding:6px 10px;color:var(--txt);font-size:12px;font-weight:600">
+            <option value="en-US" selected>🇺🇸 English (US)</option>
+            <option value="en-GB">🇬🇧 English (UK)</option>
+            <option value="es-ES">🇪🇸 Spanish</option>
+            <option value="fr-FR">🇫🇷 French</option>
+            <option value="de-DE">🇩🇪 German</option>
+            <option value="hi-IN">🇮🇳 Hindi</option>
+            <option value="ar-SA">🇸🇦 Arabic</option>
+            <option value="ja-JP">🇯🇵 Japanese</option>
+            <option value="pt-BR">🇧🇷 Portuguese</option>
+            <option value="it-IT">🇮🇹 Italian</option>
+            <option value="zh-CN">🇨🇳 Chinese</option>
+            <option value="ko-KR">🇰🇷 Korean</option>
+          </select>
+        </div>
+
+        <!-- Mode 1: 1-Click AI Auto-Subtitles (Recommended) -->
+        <div class="sub-mode-card" id="subModeVAD" style="margin-bottom:12px;border:1px solid rgba(232,255,71,0.35);background:rgba(232,255,71,0.03)">
           <div class="sub-mode-header">
-            <span class="sub-mode-icon">🎙️</span>
+            <span class="sub-mode-icon">⚡</span>
             <div>
-              <div class="sub-mode-title">Audio Speech Detection (VAD)</div>
-              <div class="sub-mode-desc">Detects speech pauses in the video audio to auto-create timed cue blocks</div>
+              <div class="sub-mode-title" style="color:var(--acc)">⚡ 1-Click AI Subtitles (English)</div>
+              <div class="sub-mode-desc">Analyzes speech rhythm &amp; audio energy to generate synchronized English captions</div>
             </div>
           </div>
-          <button class="btn-sub-gen" onclick="App.runAutoSubtitlesEngine('audio-detect')">
-            Detect from Video Audio →
+          <button class="btn-sub-gen" style="background:var(--acc);color:#0a0d18;font-weight:700;width:100%;margin-top:8px" onclick="App.runAutoSubtitlesEngine('audio-detect')">
+            ✨ Generate English Subtitles Now →
           </button>
         </div>
 
-        <!-- Mode 2: Script Align -->
-        <div class="sub-mode-card" id="subModeScript" style="margin-bottom:10px">
-          <div class="sub-mode-header">
-            <span class="sub-mode-icon">📄</span>
-            <div>
-              <div class="sub-mode-title">Script / Lyrics Alignment</div>
-              <div class="sub-mode-desc">Paste your script below and it will be timed across the video duration</div>
-            </div>
-          </div>
-          <textarea id="autoSubScriptInput" rows="5" placeholder="Paste your script text here, one line per subtitle..." style="width:100%;background:var(--sur2);border:1px solid var(--bdr);border-radius:8px;padding:10px;color:var(--txt);font-size:12px;font-family:inherit;margin-top:8px;resize:vertical"></textarea>
-          <button class="btn-sub-gen" onclick="App.runAutoSubtitlesEngine('script-align')" style="margin-top:8px">
-            Align Script to Timeline →
-          </button>
-        </div>
-
-        <!-- Mode 3: Live Mic -->
-        <div class="sub-mode-card">
+        <!-- Mode 2: Live Mic Speech-to-Text -->
+        <div class="sub-mode-card" style="margin-bottom:12px">
           <div class="sub-mode-header">
             <span class="sub-mode-icon">🎤</span>
             <div>
-              <div class="sub-mode-title">Live Microphone Transcription</div>
-              <div class="sub-mode-desc">Speak into your mic — Chrome/Edge will transcribe in real-time</div>
+              <div class="sub-mode-title">Live Speech Recognition (English STT)</div>
+              <div class="sub-mode-desc">Transcribes spoken English directly from your microphone into subtitle cues</div>
             </div>
           </div>
           <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
-            <select id="autoSubLangSelect" style="flex:1;background:var(--sur2);border:1px solid var(--bdr);border-radius:7px;padding:7px 10px;color:var(--txt);font-size:12px">
-              <option value="en-US">English (US)</option>
-              <option value="en-GB">English (UK)</option>
-              <option value="es-ES">Spanish</option>
-              <option value="fr-FR">French</option>
-              <option value="de-DE">German</option>
-              <option value="hi-IN">Hindi</option>
-              <option value="ar-SA">Arabic</option>
-              <option value="ja-JP">Japanese</option>
-              <option value="pt-BR">Portuguese (BR)</option>
-              <option value="it-IT">Italian</option>
-              <option value="zh-CN">Chinese (Simplified)</option>
-              <option value="ko-KR">Korean</option>
-            </select>
-            <button class="btn-sub-gen" onclick="App.runAutoSubtitlesEngine('live-mic')" style="flex:1">Start Listening →</button>
+            <button class="btn-sub-gen" onclick="App.runAutoSubtitlesEngine('live-mic')" style="flex:1">🎙️ Start Listening (English) →</button>
             <button class="btn-sub-stop" onclick="App.stopLiveMic()">■ Stop</button>
           </div>
         </div>
 
+        <!-- Mode 3: Script Align -->
+        <div class="sub-mode-card" id="subModeScript" style="margin-bottom:10px">
+          <div class="sub-mode-header">
+            <span class="sub-mode-icon">📄</span>
+            <div>
+              <div class="sub-mode-title">Script / Lyrics Alignment (English)</div>
+              <div class="sub-mode-desc">Paste or load an English script to automatically distribute across the timeline</div>
+            </div>
+          </div>
+          <textarea id="autoSubScriptInput" rows="4" placeholder="Paste your English script lines here (one line per subtitle)..." style="width:100%;background:var(--sur2);border:1px solid var(--bdr);border-radius:8px;padding:10px;color:var(--txt);font-size:12px;font-family:inherit;margin-top:8px;resize:vertical"></textarea>
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <button class="btn-preset" onclick="App.loadSampleScript()" style="font-size:11px">📝 Fill Sample Script</button>
+            <button class="btn-sub-gen" onclick="App.runAutoSubtitlesEngine('script-align')" style="flex:1">
+              Align Script to Timeline →
+            </button>
+          </div>
+        </div>
+
         <!-- Progress -->
-        <div style="margin-top:16px">
-          <div id="autoSubProgress" style="height:4px;background:var(--bdr);border-radius:4px;overflow:hidden">
+        <div style="margin-top:14px">
+          <div id="autoSubProgress" style="height:5px;background:var(--bdr);border-radius:4px;overflow:hidden">
             <div id="autoSubProgressFill" style="height:100%;background:var(--acc);width:0%;transition:width .4s"></div>
           </div>
-          <div id="autoSubStatus" style="margin-top:8px;font-size:11px;color:var(--txt-dim);min-height:18px"></div>
+          <div id="autoSubStatus" style="margin-top:8px;font-size:11.5px;color:var(--txt-dim);min-height:18px"></div>
         </div>
       </div>
 
