@@ -294,10 +294,73 @@ export const SubtitlesManager = {
     src.connect(offlineCtx.destination);
     src.start(0);
     const rendered = await offlineCtx.startRendering();
+    const rawPcm = rendered.getChannelData(0);
     return {
-      pcm: rendered.getChannelData(0),
+      pcm: this._normalizePCM(rawPcm),
       duration: decoded.duration
     };
+  },
+
+  /**
+   * Remove DC offset and peak-normalize PCM to 0.95 so quiet microphone recordings are heard clearly by Whisper
+   */
+  _normalizePCM(pcm) {
+    if (!pcm || !pcm.length) return pcm;
+    let sum = 0;
+    for (let i = 0; i < pcm.length; i++) sum += pcm[i];
+    const mean = sum / pcm.length;
+
+    let maxAbs = 0;
+    const out = new Float32Array(pcm.length);
+    for (let i = 0; i < pcm.length; i++) {
+      const v = pcm[i] - mean;
+      out[i] = v;
+      const a = Math.abs(v);
+      if (a > maxAbs) maxAbs = a;
+    }
+
+    if (maxAbs > 0.001 && maxAbs < 0.9) {
+      const gain = Math.min(25, 0.95 / maxAbs);
+      for (let i = 0; i < out.length; i++) {
+        out[i] = Math.max(-1, Math.min(1, out[i] * gain));
+      }
+    }
+    return out;
+  },
+
+  /**
+   * Segment 16kHz PCM into active speech windows for fallback chunked Whisper decoding
+   */
+  _segmentPCMByEnergy(pcm, sr = 16000, totalDur = 30) {
+    const win = Math.floor(sr * 0.1); // 100ms
+    const energies = [];
+    for (let i = 0; i < pcm.length - win; i += win) {
+      let s = 0;
+      for (let j = 0; j < win; j++) s += pcm[i + j] * pcm[i + j];
+      energies.push({ t: i / sr, e: Math.sqrt(s / win) });
+    }
+    const avg = energies.reduce((a, b) => a + b.e, 0) / (energies.length || 1);
+    const thr = Math.max(0.015, avg * 0.65);
+
+    const segs = [];
+    let inSp = false, st = 0;
+    for (const p of energies) {
+      if (!inSp && p.e > thr) { inSp = true; st = Math.max(0, p.t - 0.15); }
+      else if (inSp && (p.e < thr || (p.t - st) >= 14)) {
+        const en = Math.min(totalDur, p.t + 0.25);
+        if (en - st >= 0.6) segs.push({ start: +st.toFixed(2), end: +en.toFixed(2) });
+        inSp = false;
+      }
+    }
+    if (inSp) segs.push({ start: +st.toFixed(2), end: +totalDur.toFixed(2) });
+
+    if (!segs.length) {
+      for (let t = 0; t < totalDur; t += 10) {
+        const en = Math.min(totalDur, t + 10);
+        if (en - t >= 0.8) segs.push({ start: +t.toFixed(2), end: +en.toFixed(2) });
+      }
+    }
+    return segs;
   },
 
   /**
@@ -306,8 +369,8 @@ export const SubtitlesManager = {
   _splitChunkIntoReadableCues(start, end, text, maxWords = 6) {
     const clean = (text || '').replace(/\s+/g, ' ').trim();
     if (!clean) return;
-    // Filter out Whisper non-speech hallucinations like [BLANK_AUDIO] or (music)
-    if (/^[\[(]\s*(blank_audio|silence|music|applause|laughter|inaudible)\s*[\])]$/i.test(clean)) return;
+    // Filter out pure Whisper non-speech tokens like [BLANK_AUDIO] or (silence)
+    if (/^[\[(]\s*(blank_audio|silence|no\s*speech)\s*[\])]$/i.test(clean)) return;
 
     const words = clean.split(' ');
     const safeEnd = Math.max(start + 0.4, end);
@@ -392,6 +455,26 @@ export const SubtitlesManager = {
       this._splitChunkIntoReadableCues(0.2, effectiveDur, result.text, maxWordsPerCue);
     }
 
+    // Fallback: if Whisper timestamp decoder returned 0 cues on audible speech, run VAD-sliced direct Whisper decoding
+    if (this.cues.length === 0) {
+      const segs = this._segmentPCMByEnergy(pcm, 16000, effectiveDur);
+      for (let i = 0; i < segs.length; i++) {
+        const seg = segs[i];
+        const sIdx = Math.max(0, Math.floor(seg.start * 16000));
+        const eIdx = Math.min(pcm.length, Math.ceil(seg.end * 16000));
+        if (eIdx - sIdx < 3200) continue; // < 0.2s
+        const pct = 80 + Math.round(((i + 1) / segs.length) * 16);
+        onProgress?.(`Transcribing speech segment ${i + 1}/${segs.length}…`, pct);
+        const segRes = await transcriber(pcm.subarray(sIdx, eIdx), {
+          return_timestamps: false,
+          ...(!isEnglish && langMap[shortCode] ? { language: langMap[shortCode], task: 'transcribe' } : {})
+        });
+        if (segRes?.text) {
+          this._splitChunkIntoReadableCues(seg.start, seg.end, segRes.text, maxWordsPerCue);
+        }
+      }
+    }
+
     return this.cues;
   },
 
@@ -421,12 +504,15 @@ export const SubtitlesManager = {
 
     let startEpoch = Date.now();
     let interimMap = {};
+    this._pendingInterim = '';
+    this._onLiveComplete = onComplete;
 
     onStatus?.(`Listening in English (${r.lang})… Speak clearly into your microphone`, 30);
 
     r.onresult = (e) => {
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const t = e.results[i][0].transcript.trim();
+        if (!t) continue;
         if (e.results[i].isFinal) {
           const curTime = window.Player && Player.isPlaying ? Player.getCurrentTime() : ((Date.now() - startEpoch) / 1000);
           const start = Math.max(0, parseFloat((curTime - 2.8).toFixed(2)));
@@ -434,14 +520,19 @@ export const SubtitlesManager = {
           this.addCue(start, end, t);
           onResult?.(this.cues);
           delete interimMap[i];
+          this._pendingInterim = '';
         } else {
           interimMap[i] = t;
-          onStatus?.('Hearing: ' + Object.values(interimMap).join(' '), 60);
+          this._pendingInterim = Object.values(interimMap).join(' ').trim();
+          onStatus?.('Hearing: ' + this._pendingInterim, 60);
         }
       }
     };
 
     r.onerror = (e) => {
+      if (e.error === 'no-speech' && this._recognizing) {
+        return; // Keep listening across pauses
+      }
       this._recognizing = false;
       const errMap = {
         'no-speech': 'No speech detected. Please check your microphone volume.',
@@ -453,7 +544,13 @@ export const SubtitlesManager = {
     };
 
     r.onend = () => {
-      this._recognizing = false;
+      if (this._recognizing) {
+        // Auto-restart continuous listening if user hasn't clicked Stop
+        try {
+          r.start();
+          return;
+        } catch (err) {}
+      }
       onComplete?.(this.cues);
     };
 
@@ -466,9 +563,15 @@ export const SubtitlesManager = {
   },
 
   stopLiveTranscription() {
-    if (this._recognitionInst && this._recognizing) {
-      this._recognitionInst.stop();
-      this._recognizing = false;
+    this._recognizing = false;
+    if (this._pendingInterim) {
+      const curTime = window.Player && Player.isPlaying ? Player.getCurrentTime() : (this.cues.length ? this.cues[this.cues.length - 1].end + 2.5 : 2.5);
+      const start = Math.max(0, parseFloat((curTime - 2.5).toFixed(2)));
+      this.addCue(start, Math.max(start + 0.6, parseFloat(curTime.toFixed(2))), this._pendingInterim);
+      this._pendingInterim = '';
+    }
+    if (this._recognitionInst) {
+      try { this._recognitionInst.stop(); } catch (e) {}
     }
   },
 
