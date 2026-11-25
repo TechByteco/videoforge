@@ -3,6 +3,10 @@
  * Powered by Canvas captureStream() and MediaRecorder API
  */
 
+import { FilterEngine } from './filters.js';
+import { Timeline } from './timeline.js';
+import { AudioStudio } from './audio.js';
+
 export const ExportEngine = {
   isExporting: false,
   recorder: null,
@@ -69,10 +73,19 @@ export const ExportEngine = {
 
     canvas.width = targetW;
     canvas.height = targetH;
+    FilterEngine.isExporting = true;
+
+    let exportAudioDest = null;
+    const outputNode = AudioStudio.analyser || audioSourceNode;
 
     const restoreCanvas = () => {
       canvas.width = origW;
       canvas.height = origH;
+      FilterEngine.isExporting = false;
+      AudioStudio.syncMusicPlayback(false);
+      if (exportAudioDest && outputNode) {
+        try { outputNode.disconnect(exportAudioDest); } catch (e) {}
+      }
     };
 
     try {
@@ -80,12 +93,12 @@ export const ExportEngine = {
       const canvasStream = canvas.captureStream(fps);
       let combinedStream = canvasStream;
 
-      // 2. Mix Web Audio destination stream if available
-      if (audioContext && audioSourceNode) {
+      // 2. Mix Web Audio post-DSP destination stream (EQ, Noise Reduction, Music Mix)
+      if (audioContext && outputNode) {
         try {
-          const dest = audioContext.createMediaStreamDestination();
-          audioSourceNode.connect(dest);
-          dest.stream.getAudioTracks().forEach(track => {
+          exportAudioDest = audioContext.createMediaStreamDestination();
+          outputNode.connect(exportAudioDest);
+          exportAudioDest.stream.getAudioTracks().forEach(track => {
             combinedStream.addTrack(track);
           });
         } catch (e) {
@@ -128,15 +141,28 @@ export const ExportEngine = {
       const totalDuration = Math.max(1, (endTime || (isVideo ? videoElement.duration : 12)) - startTime);
 
       if (isVideo) {
-        videoElement.currentTime = startTime;
-        await new Promise(r => { videoElement.onseeked = r; });
+        if (Math.abs(videoElement.currentTime - startTime) > 0.05) {
+          videoElement.currentTime = startTime;
+          await new Promise(r => {
+            const done = () => { videoElement.onseeked = null; r(); };
+            videoElement.onseeked = done;
+            setTimeout(done, 600);
+          });
+        }
         this.recorder.start(100);
         videoElement.play();
+        AudioStudio.syncMusicPlayback(true, startTime);
 
         const progressInterval = setInterval(() => {
           if (!this.isExporting) {
             clearInterval(progressInterval);
             restoreCanvas();
+            return;
+          }
+
+          const skipTo = Timeline.getNextPlayableTime(videoElement.currentTime);
+          if (skipTo !== null && skipTo < (endTime || videoElement.duration)) {
+            videoElement.currentTime = skipTo;
             return;
           }
 
@@ -150,12 +176,16 @@ export const ExportEngine = {
           if (videoElement.currentTime >= (endTime || videoElement.duration) || videoElement.ended) {
             clearInterval(progressInterval);
             videoElement.pause();
-            this.recorder.stop();
+            AudioStudio.syncMusicPlayback(false);
+            if (this.recorder && this.recorder.state !== 'inactive') {
+              this.recorder.stop();
+            }
           }
-        }, 100);
+        }, 80);
       } else {
         // Image / Canvas Demo export loop
         this.recorder.start(100);
+        AudioStudio.syncMusicPlayback(true, 0);
         let elapsed = 0;
         const progressInterval = setInterval(() => {
           if (!this.isExporting) {
@@ -170,7 +200,10 @@ export const ExportEngine = {
 
           if (elapsed >= totalDuration) {
             clearInterval(progressInterval);
-            this.recorder.stop();
+            AudioStudio.syncMusicPlayback(false);
+            if (this.recorder && this.recorder.state !== 'inactive') {
+              this.recorder.stop();
+            }
           }
         }, 100);
       }

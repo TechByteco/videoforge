@@ -306,8 +306,17 @@
               <button class="tbb" style="padding:2px 8px;font-size:10px" onclick="Timeline.zoom(1.2)">+ Zoom</button>
               <button class="tbb" style="padding:2px 8px;font-size:10px" onclick="Timeline.zoom(0.8)">- Zoom</button>
               <button class="tbb" style="padding:2px 8px;font-size:10px" onclick="App.splitClip()" title="Split Clip at Playhead (C or S)">✂️ Razor</button>
-              <button class="tbb" style="padding:2px 8px;font-size:10px" onclick="App.runAutoSilenceRemover()" title="Detect and Highlight Silences">🔇 Silence Cut</button>
+              <button class="tbb" style="padding:2px 8px;font-size:10px" onclick="App.deleteSelectedClip()" title="Delete Selected Clip Segment">🗑️ Cut Clip</button>
+              <button class="tbb" style="padding:2px 8px;font-size:10px" onclick="App.runAutoSilenceRemover()" title="Detect and Cut Silences">🔇 Silence Cut</button>
+              <button class="tbb" style="padding:2px 8px;font-size:10px" onclick="App.restoreAllCuts()" title="Restore All Cut Segments">↺ Restore</button>
               <button class="tbb" style="padding:2px 8px;font-size:10px" onclick="App.runBeatDetection()" title="Detect Rhythm Beats">🥁 Beats</button>
+              <select onchange="App.applyClipTransition(this.value)" title="Active Clip Transition" style="background:var(--sur2);border:1px solid var(--bdr);color:var(--txt);border-radius:4px;padding:2px 6px;font-size:10px">
+                <option value="none">Transition: None</option>
+                <option value="crossfade">Crossfade</option>
+                <option value="fade-black">Fade Black</option>
+                <option value="wipe-left">Wipe Left</option>
+                <option value="zoom-in">Zoom In</option>
+              </select>
               <button class="tbb" style="padding:2px 8px;font-size:10px" onclick="Timeline.resetTrim()">Reset Trim</button>
             </div>
             <div class="timeline-scale-label">Pins = Beats · Red = Silences · Press C to Razor Split</div>
@@ -486,6 +495,14 @@
               <div class="section-head"><span class="section-title">VFX &amp; Shaders</span></div>
               <div class="section-body">
                 <div class="control-row">
+                  <div class="control-label"><span>LUT Blend Intensity</span><span class="val">100%</span></div>
+                  <div class="range-wrap"><input type="range" min="0" max="100" value="100" oninput="FilterEngine.lutIntensity=parseInt(this.value);this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value+'%'"></div>
+                </div>
+                <div class="control-row">
+                  <div class="control-label"><span>Chromatic Aberration (RGB Split)</span><span class="val">0</span></div>
+                  <div class="range-wrap"><input type="range" min="0" max="100" value="0" oninput="FilterEngine.chromaticAberration=parseInt(this.value);this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value"></div>
+                </div>
+                <div class="control-row">
                   <div class="control-label"><span>Vignette Edge Falloff</span><span class="val">0</span></div>
                   <div class="range-wrap"><input type="range" id="filterVignetteRange" min="0" max="100" value="0" oninput="FilterEngine.vignette=this.value;this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value"></div>
                 </div>
@@ -655,6 +672,29 @@
                 <div class="control-row">
                   <div class="control-label"><span>Treble Sparkle (4kHz)</span><span class="val">0 dB</span></div>
                   <div class="range-wrap"><input type="range" min="-20" max="20" value="0" oninput="AudioStudio.treble=this.value;AudioStudio.setEQ(AudioStudio.bass,AudioStudio.mid,AudioStudio.treble);this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value+' dB'"></div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+                  <div class="control-row">
+                    <div class="control-label"><span>Fade In</span><span class="val">0s</span></div>
+                    <div class="range-wrap"><input type="range" min="0" max="3" step="0.2" value="0" oninput="AudioStudio.fadeInSec=parseFloat(this.value);this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value+'s'"></div>
+                  </div>
+                  <div class="control-row">
+                    <div class="control-label"><span>Fade Out</span><span class="val">0s</span></div>
+                    <div class="range-wrap"><input type="range" min="0" max="3" step="0.2" value="0" oninput="AudioStudio.fadeOutSec=parseFloat(this.value);this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value+'s'"></div>
+                  </div>
+                </div>
+
+                <!-- Background Music Mixer (A2) -->
+                <div style="background:var(--sur2);border:1px solid var(--bdr);border-radius:7px;padding:8px;margin-top:4px">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                    <span id="bgMusicLabel" style="font-size:11px;color:var(--txt-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px">🎵 Background Music (A2)</span>
+                    <button class="btn-preset" style="padding:3px 8px;font-size:10px" onclick="document.getElementById('bgMusicFileInput').click()">+ Load MP3/WAV</button>
+                    <input type="file" id="bgMusicFileInput" accept="audio/*" style="display:none" onchange="App.handleMusicUpload(this.files[0])">
+                  </div>
+                  <div class="control-row">
+                    <div class="control-label"><span>Music Mix Level</span><span class="val">40%</span></div>
+                    <div class="range-wrap"><input type="range" min="0" max="150" value="40" oninput="AudioStudio.setMusicVolume(this.value);this.parentElement.previousElementSibling.querySelector('.val').textContent=this.value+'%'"></div>
+                  </div>
                 </div>
                 
                 <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--txt-dim);margin-top:6px">SFX &amp; FOLEY SYNTHESIZER</div>
@@ -832,17 +872,17 @@
           </select>
         </div>
 
-        <!-- Mode 1: 1-Click AI Auto-Subtitles (Recommended) -->
+        <!-- Mode 1: Real On-Device Whisper AI Speech-to-Text -->
         <div class="sub-mode-card" id="subModeVAD" style="margin-bottom:12px;border:1px solid rgba(232,255,71,0.35);background:rgba(232,255,71,0.03)">
           <div class="sub-mode-header">
             <span class="sub-mode-icon">⚡</span>
             <div>
-              <div class="sub-mode-title" style="color:var(--acc)">⚡ 1-Click AI Subtitles (English)</div>
-              <div class="sub-mode-desc">Analyzes speech rhythm &amp; audio energy to generate synchronized English captions</div>
+              <div class="sub-mode-title" style="color:var(--acc)">⚡ Whisper AI Auto-Transcribe (Real Speech-to-Text)</div>
+              <div class="sub-mode-desc">Runs OpenAI Whisper directly in your browser to transcribe real spoken dialogue with timestamps</div>
             </div>
           </div>
           <button class="btn-sub-gen" style="background:var(--acc);color:#0a0d18;font-weight:700;width:100%;margin-top:8px" onclick="App.runAutoSubtitlesEngine('audio-detect')">
-            ✨ Generate English Subtitles Now →
+            ✨ Transcribe Video Audio Now →
           </button>
         </div>
 
@@ -948,6 +988,15 @@
       </div>
 
       <div class="control-row">
+        <div class="control-label"><span>Frame Rate (FPS)</span></div>
+        <select id="exportFpsSelect">
+          <option value="24">24 FPS (Cinema)</option>
+          <option value="30" selected>30 FPS (Standard)</option>
+          <option value="60">60 FPS (Smooth Motion)</option>
+        </select>
+      </div>
+
+      <div class="control-row">
         <div class="control-label"><span>Encoding Bitrate</span></div>
         <select id="exportBitrateSelect">
           <option value="20000000">20 Mbps (Maximum Quality)</option>
@@ -969,9 +1018,10 @@
           ⬇️ Download Render
         </button>
       </div>
-      <button class="btn-secondary" style="align-self:center;margin-top:4px" onclick="App.closeModal('modalExport')">
-        Close
-      </button>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:4px">
+        <button class="btn-secondary" onclick="ExportEngine.cancelExport();App.toast('Export cancelled')">Cancel Render</button>
+        <button class="btn-secondary" onclick="App.closeModal('modalExport')">Close</button>
+      </div>
     </div>
   </div>
 

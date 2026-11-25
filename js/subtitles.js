@@ -261,71 +261,136 @@ export const SubtitlesManager = {
     return segs;
   },
 
-  /**
-   * Generates real, highly contextual English subtitles based on speech segments and media pacing
-   */
-  generateEnglishSubtitlesFromSegments(segments, duration = 30, mediaName = '') {
-    const nameLower = (mediaName || '').toLowerCase();
-    let scriptLines = [];
+  _whisperPipelines: {},
 
-    if (nameLower.includes('sintel')) {
-      scriptLines = [
-        "The bitter wind blows cold across the lonely peaks.",
-        "Searching for what was lost in the blizzard.",
-        "A perilous journey across the mountain pass.",
-        "Shadows move swiftly beneath the winter sky.",
-        "The ancient quest continues through fire and snow.",
-        "Hope shines through the darkest storm."
-      ];
-    } else if (nameLower.includes('steel') || nameLower.includes('tears')) {
-      scriptLines = [
-        "Hold your fire! Tracking coordinates locked.",
-        "We only have one chance at this timeline.",
-        "Scanning the perimeter for robotic activity.",
-        "The fate of our timeline hangs in the balance.",
-        "Stand by for quantum core synchronization.",
-        "Initiating defense matrix now!"
-      ];
-    } else if (nameLower.includes('bunny') || nameLower.includes('buck')) {
-      scriptLines = [
-        "A peaceful sunrise in the forest clearing.",
-        "Birds chirping softly among the ancient trees.",
-        "Stepping out to greet the warm morning breeze.",
-        "A colorful butterfly dances through the wildflowers.",
-        "Enjoying the natural beauty of the woodland.",
-        "The forest comes alive with harmony."
-      ];
+  /**
+   * Extract and resample audio from a File or URL into 16kHz Mono Float32Array PCM for Whisper AI
+   */
+  async extract16kMonoPCM(mediaFile, fallbackUrl) {
+    let arrayBuffer;
+    if (mediaFile && typeof mediaFile.arrayBuffer === 'function') {
+      arrayBuffer = await mediaFile.arrayBuffer();
+    } else if (fallbackUrl) {
+      const resp = await fetch(fallbackUrl);
+      arrayBuffer = await resp.arrayBuffer();
     } else {
-      // Natural, high-converting English captions suitable for social / presentation / tutorial / creative video
-      scriptLines = [
-        "Welcome to this video presentation.",
-        "Today we are taking a closer look at this topic.",
-        "Here is the key detail you need to understand.",
-        "Notice the dynamic rhythm and visual composition.",
-        "Every single detail creates a massive impact.",
-        "Moving forward with precision and speed.",
-        "This transforms the entire experience completely.",
-        "Bringing together creativity and cutting-edge design.",
-        "Watch how smoothly everything aligns together.",
-        "Thank you for watching, and stay tuned for more."
-      ];
+      throw new Error('No audio or video source loaded.');
     }
+
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const decodeCtx = new AudioCtx();
+    let decoded;
+    try {
+      decoded = await decodeCtx.decodeAudioData(arrayBuffer);
+    } finally {
+      if (decodeCtx.close) decodeCtx.close().catch(() => {});
+    }
+
+    const targetSr = 16000;
+    const frameCount = Math.max(1, Math.ceil(decoded.duration * targetSr));
+    const offlineCtx = new OfflineAudioContext(1, frameCount, targetSr);
+    const src = offlineCtx.createBufferSource();
+    src.buffer = decoded;
+    src.connect(offlineCtx.destination);
+    src.start(0);
+    const rendered = await offlineCtx.startRendering();
+    return {
+      pcm: rendered.getChannelData(0),
+      duration: decoded.duration
+    };
+  },
+
+  /**
+   * Split long Whisper chunks into punchy, readable 4-7 word caption cues with interpolated timestamps
+   */
+  _splitChunkIntoReadableCues(start, end, text, maxWords = 6) {
+    const clean = (text || '').replace(/\s+/g, ' ').trim();
+    if (!clean) return;
+    // Filter out Whisper non-speech hallucinations like [BLANK_AUDIO] or (music)
+    if (/^[\[(]\s*(blank_audio|silence|music|applause|laughter|inaudible)\s*[\])]$/i.test(clean)) return;
+
+    const words = clean.split(' ');
+    const safeEnd = Math.max(start + 0.4, end);
+    if (words.length <= maxWords) {
+      this.addCue(start, safeEnd, clean);
+      return;
+    }
+
+    const totalWords = words.length;
+    const totalDur = safeEnd - start;
+    let idx = 0;
+    while (idx < totalWords) {
+      const slice = words.slice(idx, idx + maxWords);
+      const fracStart = idx / totalWords;
+      const fracEnd = Math.min(1, (idx + slice.length) / totalWords);
+      const cStart = start + fracStart * totalDur;
+      const cEnd = Math.max(cStart + 0.35, start + fracEnd * totalDur);
+      this.addCue(cStart, cEnd, slice.join(' '));
+      idx += maxWords;
+    }
+  },
+
+  /**
+   * Real On-Device Whisper AI Speech-to-Text Transcription (100% Client-Side WebAssembly/WebGPU)
+   */
+  async transcribeWithWhisperAI({ mediaFile, mediaUrl, language = 'en-US', duration = 30, maxWordsPerCue = 6, onProgress }) {
+    const isEnglish = !language || language.toLowerCase().startsWith('en');
+    const modelId = isEnglish ? 'Xenova/whisper-tiny.en' : 'Xenova/whisper-tiny';
+
+    onProgress?.('Extracting & resampling 16kHz audio track…', 10);
+    const { pcm, duration: audioDur } = await this.extract16kMonoPCM(mediaFile, mediaUrl);
+    const effectiveDur = audioDur || duration || 30;
+
+    onProgress?.(`Loading Whisper AI speech model (${isEnglish ? 'English' : language})…`, 22);
+    if (!this._whisperPipelines[modelId]) {
+      const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.4.0');
+      env.allowLocalModels = false;
+      env.useBrowserCache = true;
+
+      this._whisperPipelines[modelId] = await pipeline('automatic-speech-recognition', modelId, {
+        progress_callback: (info) => {
+          if (info && typeof info.progress === 'number') {
+            const pct = Math.min(72, 22 + Math.round(info.progress * 0.5));
+            const fileLabel = info.file ? ` (${info.file.split('/').pop()})` : '';
+            onProgress?.(`Downloading Whisper AI model${fileLabel}: ${Math.round(info.progress)}%`, pct);
+          }
+        }
+      });
+    }
+
+    const transcriber = this._whisperPipelines[modelId];
+    onProgress?.('Transcribing spoken dialogue with Whisper AI…', 78);
+
+    const langMap = {
+      es: 'spanish', fr: 'french', de: 'german', hi: 'hindi', ar: 'arabic',
+      ja: 'japanese', pt: 'portuguese', it: 'italian', zh: 'chinese', ko: 'korean'
+    };
+    const shortCode = (language || 'en-US').split('-')[0].toLowerCase();
+    const opts = {
+      chunk_length_s: 30,
+      stride_length_s: 5,
+      return_timestamps: true
+    };
+    if (!isEnglish && langMap[shortCode]) {
+      opts.language = langMap[shortCode];
+      opts.task = 'transcribe';
+    }
+
+    const result = await transcriber(pcm, opts);
+    onProgress?.('Formatting & syncing subtitle cues…', 95);
 
     this.cues = [];
-    let validSegments = segments;
-    if (!validSegments || !validSegments.length) {
-      const dur = duration || 12;
-      const step = Math.max(2.5, Math.min(4.0, dur / 4));
-      validSegments = [];
-      for (let t = 0.5; t < dur - 0.5; t += step) {
-        validSegments.push({ start: +t.toFixed(2), end: +(Math.min(dur, t + step - 0.3)).toFixed(2) });
+    const chunks = Array.isArray(result?.chunks) ? result.chunks : [];
+    if (chunks.length > 0) {
+      for (const ch of chunks) {
+        const ts = ch.timestamp || [0, effectiveDur];
+        const cStart = typeof ts[0] === 'number' ? Math.max(0, ts[0]) : 0;
+        const cEnd = typeof ts[1] === 'number' ? Math.min(effectiveDur, ts[1]) : effectiveDur;
+        this._splitChunkIntoReadableCues(cStart, cEnd, ch.text, maxWordsPerCue);
       }
+    } else if (result?.text && result.text.trim()) {
+      this._splitChunkIntoReadableCues(0.2, effectiveDur, result.text, maxWordsPerCue);
     }
-
-    validSegments.forEach((seg, idx) => {
-      const line = scriptLines[idx % scriptLines.length];
-      this.addCue(seg.start, seg.end, line);
-    });
 
     return this.cues;
   },

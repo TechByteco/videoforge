@@ -466,67 +466,40 @@ export const App = {
 
     if (mode === 'audio-detect') {
       const dur = Timeline.duration || 12;
-      const mediaName = Player.mediaFile?.name || Player.video?.src || 'video';
-      setStatus('Analyzing audio speech energy & rhythm…', 30);
+      if (!Player.isLoaded || Player.mediaType === 'image' || !Player.video?.src) {
+        setStatus('⚠️ No video/audio track loaded. Upload a video with speech or use Script Alignment / Live Mic.', 0);
+        this.toast('Upload a video with spoken audio for Whisper AI transcription');
+        return;
+      }
 
+      setStatus('Preparing audio track for Whisper AI…', 8);
       try {
-        let segs = [];
-        if (Player.video?.src && !Player.staticImage) {
-          try {
-            const r = await fetch(Player.video.src);
-            const ab = await r.arrayBuffer();
-            const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const audioBuf = await tempCtx.decodeAudioData(ab);
-            segs = await SubtitlesManager.autoSegmentSpeechFromAudio(audioBuf, dur);
-          } catch (audioErr) {
-            console.warn('Audio decoding fallback to uniform segments', audioErr);
-          }
+        await SubtitlesManager.transcribeWithWhisperAI({
+          mediaFile: Player.mediaFile,
+          mediaUrl: Player.video.src,
+          language: globalLang,
+          duration: dur,
+          maxWordsPerCue: 6,
+          onProgress: (msg, pct) => setStatus(msg, pct)
+        });
+
+        if (!SubtitlesManager.cues.length) {
+          setStatus('⚠️ No spoken dialogue detected in this audio track. Try Live Mic or Script Alignment.', 100);
+          this.toast('No speech detected in audio track');
+          return;
         }
 
-        if (!segs || !segs.length) {
-          segs = [];
-          const step = Math.max(2.5, Math.min(4.0, dur / 4));
-          for (let t = 0.5; t < dur - 0.5; t += step) {
-            segs.push({ start: +t.toFixed(2), end: +(Math.min(dur, t + step - 0.3)).toFixed(2) });
-          }
-        }
-
-        setStatus('Generating English subtitles & timing cues…', 70);
-        SubtitlesManager.generateEnglishSubtitlesFromSegments(segs, dur, mediaName);
-
-        // If a non-English language was selected, translate
-        if (!globalLang.startsWith('en')) {
-          const targetCode = globalLang.split('-')[0];
-          setStatus(`Translating into [${targetCode.toUpperCase()}]…`, 85);
-          await SubtitlesManager.translateSubtitles(targetCode);
-        }
-
-        setStatus(`✅ Generated ${SubtitlesManager.cues.length} synchronized English subtitles!`, 100);
+        setStatus(`✅ Whisper AI transcribed ${SubtitlesManager.cues.length} subtitle cues!`, 100);
         this.renderSubtitlesList();
-
-        // Seek playhead to first cue so user immediately sees subtitles rendered on screen!
-        if (SubtitlesManager.cues.length > 0) {
-          Player.seek(SubtitlesManager.cues[0].start + 0.05);
-        }
-
+        Player.seek(SubtitlesManager.cues[0].start + 0.05);
         this.switchTab('subs');
-        this.toast(`🎉 Generated ${SubtitlesManager.cues.length} English subtitles!`);
+        this.pushHistoryState('Whisper AI Subtitles');
+        this.toast(`🎉 Transcribed ${SubtitlesManager.cues.length} real subtitles!`);
         setTimeout(() => this.closeModal('modalAutoSubs'), 1200);
-
       } catch (e) {
-        console.error('Subtitle generation failed', e);
-        setStatus('Generated English subtitles across timeline.', 100);
-        const segs = [
-          { start: 0.5, end: Math.min(dur, 3.8) },
-          { start: 4.2, end: Math.min(dur, 7.8) },
-          { start: 8.2, end: Math.min(dur, 11.5) }
-        ];
-        SubtitlesManager.generateEnglishSubtitlesFromSegments(segs, dur, mediaName);
-        this.renderSubtitlesList();
-        if (SubtitlesManager.cues.length > 0) Player.seek(SubtitlesManager.cues[0].start + 0.05);
-        this.switchTab('subs');
-        this.toast(`Generated ${SubtitlesManager.cues.length} English subtitles`);
-        setTimeout(() => this.closeModal('modalAutoSubs'), 1500);
+        console.error('Whisper AI transcription error:', e);
+        setStatus(`⚠️ Transcription failed: ${e.message || 'Check audio track or internet for initial model download.'}`, 0);
+        this.toast('⚠️ Whisper AI error: ' + (e.message || 'Failed'));
       }
 
     } else if (mode === 'script-align') {
@@ -687,22 +660,64 @@ export const App = {
   },
 
   async runAutoSilenceRemover() {
-    if (!Player.video?.src) {
-      this.toast('Upload media first to analyze speech silences');
+    if (!Player.video?.src && !AudioStudio.decodedAudioBuffer) {
+      this.toast('Upload a video first to analyze speech silences');
       return;
     }
-    this.toast('🔍 Analyzing speech energy & silence pauses…');
+    this.toast('🔍 Analyzing speech energy & removing silent pauses…');
     try {
-      const response = await fetch(Player.video.src);
-      const arrayBuffer = await response.arrayBuffer();
-      const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const audioBuf = await tempCtx.decodeAudioData(arrayBuffer);
+      let audioBuf = AudioStudio.decodedAudioBuffer;
+      if (!audioBuf) {
+        const ab = Player.mediaFile && typeof Player.mediaFile.arrayBuffer === 'function'
+          ? await Player.mediaFile.arrayBuffer()
+          : await (await fetch(Player.video.src)).arrayBuffer();
+        const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
+        audioBuf = await tempCtx.decodeAudioData(ab);
+        AudioStudio.decodedAudioBuffer = audioBuf;
+        if (tempCtx.close) tempCtx.close().catch(() => {});
+      }
 
       const result = await AudioStudio.detectSilencesFromBuffer(audioBuf, -36, 0.35, 0.05);
-      Timeline.renderSilenceZones(result.silences);
-      this.toast(`⚡ Found ${result.silenceCount} silence pauses (${result.totalSilenceDuration}s). Speech pacing: ${result.speechRatioPct}%`);
+      Timeline.applySilenceCuts(result.silences);
+      this.pushHistoryState('Auto Silence Cut');
+      if (result.silenceCount > 0) {
+        this.toast(`✂️ Auto-Cut ${result.silenceCount} silences (${result.totalSilenceDuration}s removed). Pacing: ${result.speechRatioPct}%`);
+      } else {
+        this.toast(`✅ No long silences found. Speech pacing: ${result.speechRatioPct}%`);
+      }
     } catch (e) {
       this.toast('Silence analysis unavailable on this track');
+    }
+  },
+
+  deleteSelectedClip() {
+    if (Timeline.deleteActiveClip()) {
+      this.pushHistoryState('Delete Clip Segment');
+      this.toast('🗑️ Deleted selected clip segment (skipped on playback & export)');
+    } else {
+      this.toast('Split a clip first before deleting a segment');
+    }
+  },
+
+  restoreAllCuts() {
+    Timeline.clearSkipRanges();
+    Timeline.setDuration(Timeline.duration);
+    this.toast('↺ Restored all cut segments and silences');
+  },
+
+  applyClipTransition(type) {
+    if (Timeline.setActiveClipTransition(type, 0.6)) {
+      this.pushHistoryState(`Transition: ${type}`);
+      this.toast(`✨ Applied "${type}" transition to active clip`);
+    }
+  },
+
+  handleMusicUpload(file) {
+    if (!file) return;
+    if (AudioStudio.loadBackgroundMusic(file)) {
+      const label = document.getElementById('bgMusicLabel');
+      if (label) label.textContent = `🎵 ${file.name}`;
+      this.toast(`🎵 Background music loaded: ${file.name}`);
     }
   },
 
@@ -995,8 +1010,12 @@ export const App = {
   },
 
   startVideoExport() {
-    this.dom.exportStatusText.textContent = 'Rendering Frames…';
-    this.dom.exportStepSub.textContent = 'Compositing filters, beauty enhancements, burned subtitles & audio';
+    const resolution = document.getElementById('exportResolutionSelect')?.value || '1080p';
+    const fps = parseInt(document.getElementById('exportFpsSelect')?.value || '30', 10);
+    const bitrate = parseInt(document.getElementById('exportBitrateSelect')?.value || '12000000', 10);
+
+    this.dom.exportStatusText.textContent = `Rendering ${resolution.toUpperCase()} @ ${fps}fps…`;
+    this.dom.exportStepSub.textContent = 'Compositing filters, transitions, burned subtitles & post-DSP audio';
     this.dom.btnDownloadExport.style.display = 'none';
 
     ExportEngine.exportVideo({
@@ -1006,22 +1025,22 @@ export const App = {
       audioSourceNode: AudioStudio.sourceNode,
       startTime: Timeline.trimIn,
       endTime: Timeline.trimOut,
-      resolution: '1080p',
-      fps: 30,
-      bitrate: 14000000,
+      resolution,
+      fps,
+      bitrate,
       onProgress: (pct) => {
         this.dom.exportProgressFill.style.width = `${pct}%`;
-        this.dom.exportStatusText.textContent = `Rendering: ${pct}%`;
+        this.dom.exportStatusText.textContent = `Rendering ${resolution.toUpperCase()}: ${pct}%`;
       },
       onComplete: ({ blob, url, sizeMB }) => {
         this.dom.exportStatusText.textContent = 'Export Complete!';
-        this.dom.exportStepSub.textContent = `File ready (${sizeMB} MB)`;
+        this.dom.exportStepSub.textContent = `File ready (${sizeMB} MB · ${resolution.toUpperCase()} ${fps}fps)`;
         this.dom.exportProgressFill.style.width = '100%';
         this.dom.btnDownloadExport.style.display = 'inline-block';
         this.dom.btnDownloadExport.onclick = () => {
           const a = document.createElement('a');
           a.href = url;
-          a.download = `video-export-${Date.now()}.webm`;
+          a.download = `studio-render-${resolution}-${Date.now()}.webm`;
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);

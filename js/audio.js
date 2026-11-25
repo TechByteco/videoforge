@@ -43,6 +43,16 @@ export const AudioStudio = {
   mid: 0,
   treble: 0,
   activeEffect: 'none',
+  fadeInSec: 0,
+  fadeOutSec: 0,
+  decodedAudioBuffer: null,
+
+  // Secondary Music / B-Roll Audio Track
+  musicEl: null,
+  musicSourceNode: null,
+  musicGainNode: null,
+  musicVolume: 0.4,
+  musicLoaded: false,
 
   spectrumData: null,
   isInitialized: false,
@@ -545,5 +555,86 @@ export const AudioStudio = {
     for (let i = 0; i < string.length; i++) {
       view.setUint8(offset + i, string.charCodeAt(i));
     }
+  },
+
+  async renderWaveformFromSource(mediaFile, fallbackUrl) {
+    try {
+      let ab;
+      if (mediaFile && typeof mediaFile.arrayBuffer === 'function') {
+        ab = await mediaFile.arrayBuffer();
+      } else if (fallbackUrl) {
+        ab = await (await fetch(fallbackUrl)).arrayBuffer();
+      } else {
+        return null;
+      }
+      const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const decoded = await tempCtx.decodeAudioData(ab);
+      this.decodedAudioBuffer = decoded;
+      if (window.Timeline && typeof Timeline.renderAudioWaveform === 'function') {
+        Timeline.renderAudioWaveform(decoded);
+      }
+      if (tempCtx.close) tempCtx.close().catch(() => {});
+      return decoded;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  loadBackgroundMusic(file) {
+    if (!file) return false;
+    if (!this.ctx) this.init(document.getElementById('sourceVideo'));
+    this.resume();
+
+    if (!this.musicEl) {
+      this.musicEl = new Audio();
+      this.musicEl.loop = true;
+      this.musicEl.crossOrigin = 'anonymous';
+    }
+    this.musicEl.src = URL.createObjectURL(file);
+
+    if (this.ctx && !this.musicSourceNode) {
+      this.musicSourceNode = this.ctx.createMediaElementSource(this.musicEl);
+      this.musicGainNode = this.ctx.createGain();
+      this.musicGainNode.gain.value = this.musicVolume;
+      this.musicSourceNode.connect(this.musicGainNode);
+      if (this.analyser) {
+        this.musicGainNode.connect(this.analyser);
+      } else {
+        this.musicGainNode.connect(this.ctx.destination);
+      }
+    }
+    this.musicLoaded = true;
+    return true;
+  },
+
+  setMusicVolume(volPercent) {
+    this.musicVolume = Math.max(0, Math.min(1.5, volPercent / 100));
+    if (this.musicGainNode && this.ctx) {
+      this.musicGainNode.gain.setValueAtTime(this.musicVolume, this.ctx.currentTime);
+    }
+  },
+
+  syncMusicPlayback(isPlaying, currentTime = 0) {
+    if (!this.musicEl || !this.musicLoaded) return;
+    if (isPlaying) {
+      if (Math.abs(this.musicEl.currentTime - currentTime) > 0.35 && this.musicEl.duration) {
+        this.musicEl.currentTime = currentTime % this.musicEl.duration;
+      }
+      if (this.musicEl.paused) this.musicEl.play().catch(() => {});
+    } else {
+      if (!this.musicEl.paused) this.musicEl.pause();
+    }
+  },
+
+  applyFadeEnvelope(currentTime, trimIn = 0, trimOut = 12) {
+    if (!this.gainNode || !this.ctx) return;
+    let mult = 1.0;
+    if (this.fadeInSec > 0 && currentTime < trimIn + this.fadeInSec) {
+      mult = Math.max(0, Math.min(1, (currentTime - trimIn) / this.fadeInSec));
+    }
+    if (this.fadeOutSec > 0 && currentTime > trimOut - this.fadeOutSec) {
+      mult = Math.min(mult, Math.max(0, (trimOut - currentTime) / this.fadeOutSec));
+    }
+    this.gainNode.gain.setValueAtTime(this.volume * mult, this.ctx.currentTime);
   }
 };

@@ -14,9 +14,10 @@ export const Timeline = {
   // Beat markers from AudioStudio
   beatMarkers: [],
 
-  // Clips in sequence
+  // Clips in sequence & cut/skip ranges (for real ripple delete / silence removal)
   clips: [],
   activeClipIndex: 0,
+  skipRanges: [],
 
   // UI Elements cache
   trackContainer: null,
@@ -36,16 +37,104 @@ export const Timeline = {
     this.duration = dur || 0;
     this.trimIn = 0;
     this.trimOut = this.duration;
+    this.skipRanges = [];
+    this.silenceZones = [];
     this.clips = [{
       id: 'clip_0',
       start: 0,
       end: this.duration,
       in: 0,
       out: this.duration,
+      speed: 1.0,
+      transitionIn: 'none',
+      transitionDur: 0.5,
       name: 'Main Video Track'
     }];
+    this.activeClipIndex = 0;
+    this.updateRulerTicks();
+    this.renderVideoClips();
     this.updateUI();
     this.renderBeatMarkersUI();
+  },
+
+  updateRulerTicks() {
+    if (!this.rulerEl || !this.duration) return;
+    const ticks = this.rulerEl.querySelectorAll('.ruler-tick');
+    if (!ticks.length) return;
+    const count = ticks.length - 1 || 1;
+    ticks.forEach((el, idx) => {
+      const t = (idx / count) * this.duration;
+      const m = Math.floor(t / 60);
+      const s = Math.floor(t % 60);
+      el.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    });
+  },
+
+  renderVideoClips() {
+    const lane = document.querySelector('.track-video');
+    if (!lane || !this.duration) return;
+    lane.querySelectorAll('.track-clip-block').forEach(el => el.remove());
+
+    this.clips.forEach((clip, idx) => {
+      const block = document.createElement('div');
+      block.className = 'track-clip-block' + (idx === this.activeClipIndex ? ' active-clip' : '');
+      const leftPct = Math.max(0, Math.min(100, (clip.start / this.duration) * 100));
+      const widthPct = Math.max(1, Math.min(100 - leftPct, ((clip.end - clip.start) / this.duration) * 100));
+      block.style.position = 'absolute';
+      block.style.left = `${leftPct}%`;
+      block.style.width = `${widthPct}%`;
+      block.style.top = '4px';
+      block.style.bottom = '4px';
+      block.style.cursor = 'pointer';
+      if (idx === this.activeClipIndex) {
+        block.style.outline = '1.5px solid var(--acc)';
+        block.style.background = 'rgba(232,255,71,0.16)';
+      }
+
+      const transBadge = clip.transitionIn && clip.transitionIn !== 'none'
+        ? `<span style="font-size:9px;background:var(--acc);color:#000;padding:1px 4px;border-radius:3px;margin-right:4px;font-weight:700">${clip.transitionIn}</span>`
+        : '';
+      block.innerHTML = `<span class="clip-title">${transBadge}${clip.name} (${(clip.end - clip.start).toFixed(1)}s)</span>`;
+      block.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.activeClipIndex = idx;
+        this.renderVideoClips();
+      });
+      lane.appendChild(block);
+    });
+  },
+
+  renderAudioWaveform(audioBuffer) {
+    const lane = document.querySelector('.track-audio');
+    if (!lane || !audioBuffer) return;
+    let canvas = lane.querySelector('.waveform-canvas');
+    if (!canvas) {
+      canvas = document.createElement('canvas');
+      canvas.className = 'waveform-canvas';
+      canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:0.55;';
+      lane.appendChild(canvas);
+    }
+    const w = canvas.width = Math.max(400, lane.clientWidth || 600);
+    const h = canvas.height = Math.max(32, lane.clientHeight || 40);
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, w, h);
+
+    const data = audioBuffer.getChannelData(0);
+    const step = Math.max(1, Math.floor(data.length / w));
+    const amp = h / 2;
+    ctx.fillStyle = '#47ffb8';
+    for (let i = 0; i < w; i++) {
+      let min = 1.0, max = -1.0;
+      const offset = i * step;
+      for (let j = 0; j < step; j++) {
+        const val = data[offset + j] || 0;
+        if (val < min) min = val;
+        if (val > max) max = val;
+      }
+      const barTop = (1 + min) * amp;
+      const barH = Math.max(1, (max - min) * amp);
+      ctx.fillRect(i, barTop, 1, barH);
+    }
   },
 
   setTime(t) {
@@ -154,16 +243,92 @@ export const Timeline = {
 
   splitAtPlayhead() {
     if (!this.duration || this.currentTime <= 0.1 || this.currentTime >= this.duration - 0.1) return false;
-    
-    this.clips.push({
+    const idx = this.clips.findIndex(c => this.currentTime > c.start + 0.1 && this.currentTime < c.end - 0.1);
+    if (idx === -1) return false;
+
+    const target = this.clips[idx];
+    const origEnd = target.end;
+    target.end = +this.currentTime.toFixed(2);
+    target.out = target.end;
+
+    const newClip = {
       id: `clip_${Date.now()}`,
-      start: this.currentTime,
-      end: this.trimOut,
-      in: this.currentTime,
-      out: this.trimOut,
-      name: `Clip Segment ${this.clips.length + 1}`
-    });
+      start: +this.currentTime.toFixed(2),
+      end: origEnd,
+      in: +this.currentTime.toFixed(2),
+      out: origEnd,
+      speed: target.speed || 1.0,
+      transitionIn: target.transitionIn || 'none',
+      transitionDur: target.transitionDur || 0.5,
+      name: `Clip ${this.clips.length + 1}`
+    };
+
+    this.clips.splice(idx + 1, 0, newClip);
+    this.activeClipIndex = idx + 1;
+    this.renderVideoClips();
     return true;
+  },
+
+  deleteActiveClip() {
+    if (this.clips.length <= 1) return false;
+    const removed = this.clips.splice(this.activeClipIndex, 1)[0];
+    if (removed) {
+      this.skipRanges.push({ start: removed.start, end: removed.end, reason: 'Deleted Clip' });
+      this.skipRanges.sort((a, b) => a.start - b.start);
+    }
+    this.activeClipIndex = Math.max(0, this.activeClipIndex - 1);
+    this.renderVideoClips();
+    this.renderSilenceZones(this.silenceZones);
+    return true;
+  },
+
+  setActiveClipTransition(type = 'crossfade', dur = 0.6) {
+    const clip = this.clips[this.activeClipIndex];
+    if (!clip) return false;
+    clip.transitionIn = type;
+    clip.transitionDur = dur;
+    this.renderVideoClips();
+    return true;
+  },
+
+  getTransitionState(currentTime) {
+    for (const clip of this.clips) {
+      if (clip.transitionIn && clip.transitionIn !== 'none') {
+        const dur = clip.transitionDur || 0.5;
+        const start = Math.max(clip.start, this.trimIn);
+        if (currentTime >= start && currentTime <= start + dur) {
+          return {
+            type: clip.transitionIn,
+            progress: Math.min(1, Math.max(0, (currentTime - start) / dur))
+          };
+        }
+      }
+    }
+    return null;
+  },
+
+  applySilenceCuts(silences) {
+    if (!silences || !silences.length) return 0;
+    this.skipRanges = silences.map(s => ({ start: s.start, end: s.end, reason: 'Silence Cut' }));
+    this.renderSilenceZones(silences);
+    return this.skipRanges.length;
+  },
+
+  clearSkipRanges() {
+    this.skipRanges = [];
+    this.silenceZones = [];
+    const lane = document.querySelector('.track-audio');
+    if (lane) lane.querySelectorAll('.silence-zone-block').forEach(b => b.remove());
+  },
+
+  getNextPlayableTime(t) {
+    if (!this.skipRanges || !this.skipRanges.length) return null;
+    for (const r of this.skipRanges) {
+      if (t >= r.start && t < r.end - 0.05) {
+        return r.end;
+      }
+    }
+    return null;
   },
 
   silenceZones: [],

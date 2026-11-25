@@ -52,13 +52,33 @@ export const Player = {
 
       Timeline.setDuration(this.video.duration);
       AudioStudio.init(this.video);
+      if (typeof AudioStudio.renderWaveformFromSource === 'function') {
+        AudioStudio.renderWaveformFromSource(this.mediaFile, this.video.src);
+      }
 
       if (this.onMetadataLoaded) this.onMetadataLoaded(this.video.duration, this.video.videoWidth, this.video.videoHeight);
     });
 
     this.video.addEventListener('timeupdate', () => {
       if (this.mediaType === 'video') {
+        if (this.isPlaying) {
+          const skipTo = Timeline.getNextPlayableTime(this.video.currentTime);
+          if (skipTo !== null && skipTo < this.video.duration) {
+            this.video.currentTime = skipTo;
+            return;
+          }
+          if (Timeline.trimOut > 0 && this.video.currentTime >= Timeline.trimOut) {
+            if (Timeline.isLooping) {
+              this.video.currentTime = Timeline.trimIn;
+            } else {
+              this.video.pause();
+              this.isPlaying = false;
+              if (this.onPlayStateChange) this.onPlayStateChange(false);
+            }
+          }
+        }
         Timeline.setTime(this.video.currentTime);
+        AudioStudio.applyFadeEnvelope(this.video.currentTime, Timeline.trimIn, Timeline.trimOut || this.video.duration);
         
         const activeCue = SubtitlesManager.getActiveCue(this.video.currentTime);
         if (this.onSubtitleUpdate) {
@@ -69,6 +89,7 @@ export const Player = {
 
     this.video.addEventListener('ended', () => {
       this.isPlaying = false;
+      AudioStudio.syncMusicPlayback(false);
       if (this.onPlayStateChange) this.onPlayStateChange(false);
     });
   },
@@ -76,26 +97,58 @@ export const Player = {
   setupCanvasInteractions() {
     let isDraggingSplit = false;
     let isDraggingSub = false;
+    let draggingOverlay = null;
+    let draggingSticker = null;
 
     this.canvas.addEventListener('mousedown', (e) => {
       const rect = this.canvas.getBoundingClientRect();
+      const mouseXRel = (e.clientX - rect.left) / rect.width;
       const mouseYRel = (e.clientY - rect.top) / rect.height;
 
       if (FilterEngine.splitScreen) {
         isDraggingSplit = true;
         this.updateSplitPos(e);
-      } else if (e.shiftKey || Math.abs(mouseYRel - (SubtitlesManager.style.positionY || 0.84)) < 0.12) {
+        return;
+      }
+
+      // Check stickers first
+      for (let i = this.stickers.length - 1; i >= 0; i--) {
+        const st = this.stickers[i];
+        if (Math.abs(mouseXRel - (st.x || 0.5)) < 0.08 && Math.abs(mouseYRel - (st.y || 0.3)) < 0.08) {
+          draggingSticker = st;
+          return;
+        }
+      }
+
+      // Check text overlays
+      for (let i = this.textOverlays.length - 1; i >= 0; i--) {
+        const ov = this.textOverlays[i];
+        if (Math.abs(mouseXRel - (ov.x || 0.5)) < 0.2 && Math.abs(mouseYRel - (ov.y || 0.15)) < 0.08) {
+          draggingOverlay = ov;
+          return;
+        }
+      }
+
+      if (e.shiftKey || Math.abs(mouseYRel - (SubtitlesManager.style.positionY || 0.84)) < 0.12) {
         isDraggingSub = true;
         SubtitlesManager.style.positionY = Math.max(0.1, Math.min(0.92, mouseYRel));
       }
     });
 
     window.addEventListener('mousemove', (e) => {
+      const rect = this.canvas.getBoundingClientRect();
+      const mouseXRel = Math.max(0.05, Math.min(0.95, (e.clientX - rect.left) / rect.width));
+      const mouseYRel = Math.max(0.05, Math.min(0.95, (e.clientY - rect.top) / rect.height));
+
       if (isDraggingSplit && FilterEngine.splitScreen) {
         this.updateSplitPos(e);
+      } else if (draggingSticker) {
+        draggingSticker.x = mouseXRel;
+        draggingSticker.y = mouseYRel;
+      } else if (draggingOverlay) {
+        draggingOverlay.x = mouseXRel;
+        draggingOverlay.y = mouseYRel;
       } else if (isDraggingSub) {
-        const rect = this.canvas.getBoundingClientRect();
-        const mouseYRel = (e.clientY - rect.top) / rect.height;
         SubtitlesManager.style.positionY = Math.max(0.1, Math.min(0.92, mouseYRel));
       }
     });
@@ -103,6 +156,8 @@ export const Player = {
     window.addEventListener('mouseup', () => {
       isDraggingSplit = false;
       isDraggingSub = false;
+      draggingOverlay = null;
+      draggingSticker = null;
     });
   },
 
@@ -217,6 +272,7 @@ export const Player = {
       this.video.pause();
       this.isPlaying = false;
     }
+    AudioStudio.syncMusicPlayback(this.isPlaying, this.getCurrentTime());
     if (this.onPlayStateChange) this.onPlayStateChange(this.isPlaying);
   },
 
@@ -225,9 +281,11 @@ export const Player = {
     if (this.mediaType === 'image') {
       this.imageCurrentTime = Math.max(0, Math.min(seconds, Timeline.duration || 12));
       Timeline.setTime(this.imageCurrentTime);
+      AudioStudio.syncMusicPlayback(this.isPlaying, this.imageCurrentTime);
       return;
     }
     this.video.currentTime = Math.max(0, Math.min(seconds, this.video.duration));
+    AudioStudio.syncMusicPlayback(this.isPlaying, this.video.currentTime);
   },
 
   getCurrentTime() {
@@ -308,6 +366,8 @@ export const Player = {
       if (this.isLoaded && this.canvas && this.ctx) {
         const source = this.staticImage || this.video;
         const curTime = this.getCurrentTime();
+        FilterEngine.totalDuration = Timeline.duration || 12;
+        FilterEngine.activeTransition = Timeline.getTransitionState(curTime);
         FilterEngine.renderFrame(
           this.ctx,
           source,

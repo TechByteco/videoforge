@@ -72,6 +72,8 @@ export const FilterEngine = {
   // Split Screen Comparison (Before vs After)
   splitScreen: false,
   splitPosition: 0.5,
+  isExporting: false,
+  activeTransition: null,
 
   // Frame counter & offscreen canvas cache
   frameCount: 0,
@@ -140,8 +142,8 @@ export const FilterEngine = {
     this.splitScreen = false;
   },
 
-  getCanvasFilterString() {
-    let b = 1 + this.brightness / 100;
+  getCanvasFilterString(includeLUT = true) {
+    let b = 1 + this.brightness / 100 + (this.exposure / 100) * 0.45;
     let c = 1 + this.contrast / 100;
     let s = 1 + this.saturation / 100;
     let h = this.hueRotate;
@@ -159,6 +161,7 @@ export const FilterEngine = {
     }
     
     let str = `brightness(${Math.max(0, b)}) contrast(${Math.max(0, c)}) saturate(${Math.max(0, s)}) hue-rotate(${h}deg)`;
+    if (!includeLUT) return str;
 
     switch (this.activeLUT) {
       case 'cyberpunk':
@@ -392,11 +395,31 @@ export const FilterEngine = {
       ctx.restore();
 
     } else {
-      // Normal Full Frame Render
+      // Normal Full Frame Render (with LUT Intensity blend & Clip Transitions)
+      const tr = this.activeTransition;
+      const trZoom = (tr && tr.type === 'zoom-in') ? (1.35 - 0.35 * tr.progress) : 1.0;
+
       ctx.save();
-      this.applyTransforms(ctx, targetW, targetH, effectiveZoom);
-      ctx.filter = this.getCanvasFilterString();
-      ctx.drawImage(videoEl, posX, posY, drawW, drawH);
+      if (tr && tr.type === 'wipe-left') {
+        ctx.beginPath();
+        ctx.rect(0, 0, targetW * tr.progress, targetH);
+        ctx.clip();
+      }
+      if (tr && (tr.type === 'crossfade' || tr.type === 'fade-black')) {
+        ctx.globalAlpha = tr.progress;
+      }
+
+      this.applyTransforms(ctx, targetW, targetH, effectiveZoom * trZoom);
+      if (this.activeLUT !== 'none' && this.lutIntensity < 100) {
+        ctx.filter = this.getCanvasFilterString(false);
+        ctx.drawImage(videoEl, posX, posY, drawW, drawH);
+        ctx.globalAlpha *= Math.max(0, Math.min(1, this.lutIntensity / 100));
+        ctx.filter = this.getCanvasFilterString(true);
+        ctx.drawImage(videoEl, posX, posY, drawW, drawH);
+      } else {
+        ctx.filter = this.getCanvasFilterString(true);
+        ctx.drawImage(videoEl, posX, posY, drawW, drawH);
+      }
       ctx.restore();
     }
 
@@ -482,6 +505,39 @@ export const FilterEngine = {
   },
 
   applySpecialFX(ctx, w, h) {
+    // Color Temperature (Warmth: -100 Cool Blue to +100 Warm Amber)
+    if (this.warmth !== 0) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'soft-light';
+      const strength = Math.min(0.65, Math.abs(this.warmth) / 100 * 0.65);
+      ctx.fillStyle = this.warmth > 0
+        ? `rgba(255, 140, 30, ${strength})`
+        : `rgba(30, 145, 255, ${strength})`;
+      ctx.fillRect(0, 0, w, h);
+      ctx.restore();
+    }
+
+    // Real RGB Chromatic Aberration channel shift
+    if (this.chromaticAberration > 0) {
+      try {
+        const shift = Math.max(1, Math.round((this.chromaticAberration / 100) * 10));
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const src = imgData.data;
+        const copy = new Uint8ClampedArray(src);
+        for (let y = 0; y < h; y++) {
+          const row = y * w * 4;
+          for (let x = 0; x < w; x++) {
+            const idx = row + x * 4;
+            const rX = Math.min(w - 1, x + shift);
+            const bX = Math.max(0, x - shift);
+            src[idx] = copy[row + rX * 4];
+            src[idx + 2] = copy[row + bX * 4 + 2];
+          }
+        }
+        ctx.putImageData(imgData, 0, 0);
+      } catch (e) {}
+    }
+
     if (this.vignette > 0) {
       const grad = ctx.createRadialGradient(w / 2, h / 2, w * 0.25, w / 2, h / 2, Math.max(w, h) * 0.7);
       grad.addColorStop(0, 'rgba(0,0,0,0)');
@@ -729,8 +785,8 @@ export const FilterEngine = {
       });
     }
 
-    // 1. TikTok/Reels Safe Zone Guide
-    if (this.safeZoneOverlay) {
+    // 1. TikTok/Reels Safe Zone Guide (Editor preview only, hidden on export)
+    if (this.safeZoneOverlay && !this.isExporting) {
       ctx.save();
       ctx.strokeStyle = 'rgba(232, 255, 71, 0.6)';
       ctx.lineWidth = 2;
@@ -742,8 +798,8 @@ export const FilterEngine = {
       ctx.restore();
     }
 
-    // 2. Rule of Thirds Grid
-    if (this.gridOverlay) {
+    // 2. Rule of Thirds Grid (Editor preview only, hidden on export)
+    if (this.gridOverlay && !this.isExporting) {
       ctx.save();
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
       ctx.lineWidth = 1;
