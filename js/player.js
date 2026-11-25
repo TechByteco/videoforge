@@ -79,6 +79,9 @@ export const Player = {
         }
         Timeline.setTime(this.video.currentTime);
         AudioStudio.applyFadeEnvelope(this.video.currentTime, Timeline.trimIn, Timeline.trimOut || this.video.duration);
+        if (this.isPlaying) {
+          AudioStudio.triggerScheduledSFX(this.video.currentTime);
+        }
         
         const activeCue = SubtitlesManager.getActiveCue(this.video.currentTime);
         if (this.onSubtitleUpdate) {
@@ -254,6 +257,7 @@ export const Player = {
             }
           }
           Timeline.setTime(this.imageCurrentTime);
+          AudioStudio.triggerScheduledSFX(this.imageCurrentTime);
           this.imageAnimId = requestAnimationFrame(step);
         };
         this.imageAnimId = requestAnimationFrame(step);
@@ -357,8 +361,14 @@ export const Player = {
     this.watermark = { img, position, opacity, scale };
   },
 
-  addSticker(emoji, x = 0.5, y = 0.3, size = 48) {
-    this.stickers.push({ emoji, x, y, size });
+  addSticker(emoji, x = 0.5, y = 0.3, size = 48, start = undefined, end = undefined, caption = '', anim = 'pop', img = null, color = '#e8ff47') {
+    const id = `stk_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    this.stickers.push({ id, emoji, x, y, size, start, end, caption, anim, img, color });
+    return id;
+  },
+
+  deleteSticker(id) {
+    this.stickers = this.stickers.filter(s => s.id !== id);
   },
 
   startRenderLoop() {

@@ -167,6 +167,7 @@ export const ExportEngine = {
           }
 
           const elapsed = Math.max(0, videoElement.currentTime - startTime);
+          AudioStudio.triggerScheduledSFX(videoElement.currentTime);
           const progressPct = Math.min(100, Math.round((elapsed / totalDuration) * 100));
 
           if (onProgress) {

@@ -1494,7 +1494,7 @@ select:focus, input[type=text]:focus {
   }
 }
 
-/* -- TIMELINE SILENCE ZONES ------------------------------- */
+/* -- TIMELINE SILENCE ZONES & MEME/MUSIC CHIPS ------------- */
 .silence-zone-block {
   position: absolute;
   top: 0;
@@ -1504,4 +1504,56 @@ select:focus, input[type=text]:focus {
   border-right: 1px dashed var(--danger);
   pointer-events: none;
   z-index: 4;
+}
+
+.timeline-meme-chip {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  background: rgba(168, 85, 247, 0.25);
+  border: 1px solid rgba(192, 132, 252, 0.7);
+  border-radius: 4px;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  font-size: 10px;
+  color: #f3e8ff;
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: pointer;
+  z-index: 5;
+}
+
+.timeline-music-chip {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  background: rgba(56, 189, 248, 0.16);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  border-radius: 4px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  font-size: 10px;
+  color: #bae6fd;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.timeline-sfx-chip {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  min-width: 58px;
+  background: rgba(251, 146, 60, 0.32);
+  border: 1px solid rgba(251, 146, 60, 0.85);
+  border-radius: 4px;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #ffedd5;
+  cursor: pointer;
+  z-index: 6;
 }

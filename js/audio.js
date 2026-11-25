@@ -47,12 +47,17 @@ export const AudioStudio = {
   fadeOutSec: 0,
   decodedAudioBuffer: null,
 
-  // Secondary Music / B-Roll Audio Track
+  // Secondary Music / B-Roll Audio Track & Scheduled SFX
   musicEl: null,
   musicSourceNode: null,
   musicGainNode: null,
   musicVolume: 0.4,
   musicLoaded: false,
+  musicTitle: '',
+  musicStart: 0,
+  musicEnd: null,
+  sfxEvents: [],
+  _lastTriggerTime: -1,
 
   spectrumData: null,
   isInitialized: false,
@@ -385,9 +390,63 @@ export const AudioStudio = {
     const osc = ctx.createOscillator();
     const env = ctx.createGain();
     osc.connect(env);
-    env.connect(ctx.destination);
+    if (this.analyser && this.ctx === ctx) {
+      env.connect(this.analyser);
+    } else {
+      env.connect(ctx.destination);
+    }
 
     switch (type) {
+      case 'vine-boom':
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(110, now);
+        osc.frequency.exponentialRampToValueAtTime(28, now + 0.85);
+        env.gain.setValueAtTime(0.95, now);
+        env.gain.exponentialRampToValueAtTime(0.001, now + 1.05);
+        osc.start(now);
+        osc.stop(now + 1.06);
+        break;
+
+      case 'airhorn':
+        [370, 466.16, 554.37].forEach(freq => {
+          const hOsc = ctx.createOscillator();
+          const hEnv = ctx.createGain();
+          hOsc.type = 'sawtooth';
+          hOsc.frequency.setValueAtTime(freq, now);
+          hEnv.gain.setValueAtTime(0.16, now);
+          hEnv.gain.setValueAtTime(0.16, now + 0.35);
+          hEnv.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+          hOsc.connect(hEnv);
+          hEnv.connect(this.analyser && this.ctx === ctx ? this.analyser : ctx.destination);
+          hOsc.start(now);
+          hOsc.stop(now + 0.56);
+        });
+        break;
+
+      case 'rimshot':
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(280, now);
+        osc.frequency.setValueAtTime(420, now + 0.14);
+        env.gain.setValueAtTime(0.35, now);
+        env.gain.setValueAtTime(0.45, now + 0.14);
+        env.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+        osc.start(now);
+        osc.stop(now + 0.46);
+        break;
+
+      case 'sad-trombone':
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(293.66, now);
+        osc.frequency.setValueAtTime(277.18, now + 0.32);
+        osc.frequency.setValueAtTime(261.63, now + 0.64);
+        osc.frequency.linearRampToValueAtTime(215.0, now + 1.35);
+        env.gain.setValueAtTime(0.22, now);
+        env.gain.setValueAtTime(0.22, now + 0.96);
+        env.gain.exponentialRampToValueAtTime(0.001, now + 1.4);
+        osc.start(now);
+        osc.stop(now + 1.42);
+        break;
+
       case 'whoosh':
         osc.type = 'sine';
         osc.frequency.setValueAtTime(120, now);
@@ -580,7 +639,7 @@ export const AudioStudio = {
     }
   },
 
-  loadBackgroundMusic(file) {
+  loadBackgroundMusic(file, title = '') {
     if (!file) return false;
     if (!this.ctx) this.init(document.getElementById('sourceVideo'));
     this.resume();
@@ -604,7 +663,92 @@ export const AudioStudio = {
       }
     }
     this.musicLoaded = true;
+    this.musicTitle = title || file.name || 'Background Music';
     return true;
+  },
+
+  removeMusicTrack() {
+    if (this.musicEl) this.musicEl.pause();
+    this.musicLoaded = false;
+    this.musicTitle = '';
+    this.musicStart = 0;
+    this.musicEnd = null;
+  },
+
+  async loadBuiltInMusicLoop(style = 'lofi') {
+    const sr = 44100;
+    const dur = 8.0;
+    const offline = new OfflineAudioContext(2, Math.floor(sr * dur), sr);
+
+    const patterns = {
+      lofi: { bpm: 80, notes: [261.63, 329.63, 392.00, 493.88, 220.00, 261.63, 329.63, 392.00], type: 'sine' },
+      upbeat: { bpm: 120, notes: [261.63, 329.63, 392.00, 523.25, 293.66, 349.23, 440.00, 587.33], type: 'triangle' },
+      cinematic: { bpm: 70, notes: [130.81, 196.00, 146.83, 220.00, 110.00, 164.81, 130.81, 196.00], type: 'sawtooth' },
+      phonk: { bpm: 130, notes: [65.41, 65.41, 77.78, 98.00, 65.41, 73.42, 87.31, 61.74], type: 'square' }
+    };
+    const cfg = patterns[style] || patterns.lofi;
+    const step = 0.5;
+    for (let t = 0; t < dur; t += step) {
+      const idx = Math.floor(t / step) % cfg.notes.length;
+      const osc = offline.createOscillator();
+      const gain = offline.createGain();
+      osc.type = cfg.type;
+      osc.frequency.setValueAtTime(cfg.notes[idx], t);
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.linearRampToValueAtTime(style === 'cinematic' ? 0.08 : 0.14, t + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + step * 0.92);
+      osc.connect(gain);
+      gain.connect(offline.destination);
+      osc.start(t);
+      osc.stop(t + step);
+    }
+
+    const rendered = await offline.startRendering();
+    const wavBlob = this.audioBufferToWav(rendered);
+    const titleMap = {
+      lofi: 'LoFi Chill Loop',
+      upbeat: 'Upbeat Creator Synth',
+      cinematic: 'Cinematic Tension Pulse',
+      phonk: 'Phonk Bass Drive'
+    };
+    const file = new File([wavBlob], `${style}-loop.wav`, { type: 'audio/wav' });
+    this.loadBackgroundMusic(file, titleMap[style] || style);
+    return titleMap[style] || style;
+  },
+
+  addSFXEvent(type, timeSec, label = '') {
+    const id = `sfx_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    this.sfxEvents.push({
+      id,
+      type,
+      time: +Math.max(0, timeSec).toFixed(2),
+      label: label || type,
+      fired: false
+    });
+    this.sfxEvents.sort((a, b) => a.time - b.time);
+    return id;
+  },
+
+  removeSFXEvent(id) {
+    this.sfxEvents = this.sfxEvents.filter(s => s.id !== id);
+  },
+
+  triggerScheduledSFX(currentTime) {
+    if (!this.sfxEvents.length) return;
+    if (currentTime < this._lastTriggerTime - 0.5) {
+      // User seeked backward -> reset fired flags
+      this.sfxEvents.forEach(s => { s.fired = false; });
+    }
+    this._lastTriggerTime = currentTime;
+
+    for (const s of this.sfxEvents) {
+      if (!s.fired && Math.abs(currentTime - s.time) <= 0.18) {
+        s.fired = true;
+        this.playSynthesizedSFX(s.type);
+      } else if (currentTime < s.time - 0.25) {
+        s.fired = false;
+      }
+    }
   },
 
   setMusicVolume(volPercent) {

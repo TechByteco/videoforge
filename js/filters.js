@@ -446,8 +446,8 @@ export const FilterEngine = {
       this.renderSubtitles(ctx, targetW, targetH, subtitlesEngine, currentTime);
     }
 
-    // 10. Overlays (Watermark, Text, Stickers)
-    this.renderOverlays(ctx, targetW, targetH, textOverlays, watermark, stickerOverlays);
+    // 10. Overlays (Watermark, Text, Timed Memes & Stickers)
+    this.renderOverlays(ctx, targetW, targetH, textOverlays, watermark, stickerOverlays, currentTime);
   },
 
   applyTransforms(ctx, targetW, targetH, zoom) {
@@ -718,7 +718,7 @@ export const FilterEngine = {
     ctx.restore();
   },
 
-  renderOverlays(ctx, w, h, textOverlays, watermark, stickerOverlays) {
+  renderOverlays(ctx, w, h, textOverlays, watermark, stickerOverlays, currentTime = 0) {
     if (watermark && watermark.img) {
       ctx.save();
       ctx.globalAlpha = watermark.opacity || 0.8;
@@ -742,6 +742,7 @@ export const FilterEngine = {
     if (textOverlays && textOverlays.length) {
       textOverlays.forEach(txt => {
         if (!txt.text) return;
+        if (txt.start !== undefined && txt.end !== undefined && (currentTime < txt.start || currentTime > txt.end)) return;
         ctx.save();
         ctx.font = `${txt.weight || '700'} ${txt.size || 36}px '${txt.font || 'Syne'}', sans-serif`;
         ctx.textAlign = txt.align || 'center';
@@ -774,13 +775,54 @@ export const FilterEngine = {
 
     if (stickerOverlays && stickerOverlays.length) {
       stickerOverlays.forEach(stk => {
+        if (stk.start !== undefined && stk.end !== undefined && (currentTime < stk.start || currentTime > stk.end)) return;
         ctx.save();
-        const sx = (stk.x || 0.5) * w;
-        const sy = (stk.y || 0.2) * h;
-        ctx.font = `600 ${stk.size || 32}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(stk.emoji || '⭐', sx, sy);
+        const elapsed = stk.start !== undefined ? Math.max(0, currentTime - stk.start) : 1;
+        let scale = 1.0, offsetX = 0, offsetY = 0, alpha = 1.0;
+        if (stk.anim === 'pop' && elapsed < 0.25) {
+          scale = 0.4 + 0.75 * Math.sin((elapsed / 0.25) * Math.PI * 0.7);
+        } else if (stk.anim === 'shake' && elapsed < 0.5) {
+          offsetX = Math.sin(elapsed * 50) * 8;
+          offsetY = Math.cos(elapsed * 45) * 5;
+        } else if (stk.anim === 'zoom' && elapsed < 0.3) {
+          scale = 0.2 + 0.8 * (elapsed / 0.3);
+        } else if (stk.anim === 'fade' && elapsed < 0.3) {
+          alpha = elapsed / 0.3;
+        }
+
+        const sx = (stk.x || 0.5) * w + offsetX;
+        const sy = (stk.y || 0.3) * h + offsetY;
+        ctx.globalAlpha = alpha;
+        ctx.translate(sx, sy);
+        ctx.scale(scale, scale);
+
+        if (stk.img) {
+          const imgW = (stk.scale || 0.26) * w;
+          const imgH = (imgW / (stk.img.width || 1)) * (stk.img.height || 1);
+          ctx.drawImage(stk.img, -imgW / 2, -imgH / 2, imgW, imgH);
+        } else if (stk.caption) {
+          // Viral Meme Badge + Emoji + Impact Caption
+          const emojiSize = stk.size || 54;
+          if (stk.emoji) {
+            ctx.font = `700 ${emojiSize}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(stk.emoji, 0, -emojiSize * 0.45);
+          }
+          ctx.font = `900 ${Math.round(emojiSize * 0.44)}px 'Bangers', 'Anton', sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.lineWidth = 5;
+          ctx.strokeStyle = '#000000';
+          ctx.strokeText(stk.caption.toUpperCase(), 0, emojiSize * 0.38);
+          ctx.fillStyle = stk.color || '#e8ff47';
+          ctx.fillText(stk.caption.toUpperCase(), 0, emojiSize * 0.38);
+        } else {
+          ctx.font = `600 ${stk.size || 48}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(stk.emoji || '⭐', 0, 0);
+        }
         ctx.restore();
       });
     }

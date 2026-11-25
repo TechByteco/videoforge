@@ -720,7 +720,110 @@ export const App = {
     if (AudioStudio.loadBackgroundMusic(file)) {
       const label = document.getElementById('bgMusicLabel');
       if (label) label.textContent = `🎵 ${file.name}`;
+      this.renderMemesAndSFXLists();
       this.toast(`🎵 Background music loaded: ${file.name}`);
+    }
+  },
+
+  async selectBuiltInMusic(style) {
+    this.toast(`🎵 Generating ${style} loop…`);
+    const title = await AudioStudio.loadBuiltInMusicLoop(style);
+    const label = document.getElementById('bgMusicLabel');
+    if (label) label.textContent = `🎵 ${title}`;
+    this.renderMemesAndSFXLists();
+    this.toast(`🎵 Loaded "${title}" onto A2 Music Track`);
+  },
+
+  removeMusicTrack() {
+    AudioStudio.removeMusicTrack();
+    const label = document.getElementById('bgMusicLabel');
+    if (label) label.textContent = '🎵 Background Music (A2)';
+    this.renderMemesAndSFXLists();
+    this.toast('Removed background music track');
+  },
+
+  insertSFXAtPlayhead(type, label) {
+    const cur = Timeline.currentTime || 0;
+    AudioStudio.playSynthesizedSFX(type);
+    AudioStudio.addSFXEvent(type, cur, label || type);
+    this.renderMemesAndSFXLists();
+    this.toast(`🔊 Dropped "${label || type}" SFX at ${Timeline.formatTimecode(cur)}`);
+  },
+
+  removeSFXEvent(id) {
+    AudioStudio.removeSFXEvent(id);
+    this.renderMemesAndSFXLists();
+    this.toast('SFX removed from timeline');
+  },
+
+  insertMemeAtPlayhead(emoji, caption, anim = 'pop', duration = 2.5, sfxType = null) {
+    const start = Timeline.currentTime || 0;
+    const end = Math.min(Timeline.duration || 12, start + duration);
+    Player.addSticker(emoji, 0.5, 0.30, 56, start, end, caption, anim, null, '#e8ff47');
+    if (sfxType) {
+      AudioStudio.playSynthesizedSFX(sfxType);
+      AudioStudio.addSFXEvent(sfxType, start, caption.split(' ')[0]);
+    }
+    this.renderMemesAndSFXLists();
+    this.toast(`🎭 Dropped "${caption}" at ${Timeline.formatTimecode(start)}`);
+  },
+
+  uploadCustomMeme(file) {
+    if (!file) return;
+    const img = new Image();
+    img.onload = () => {
+      const start = Timeline.currentTime || 0;
+      const end = Math.min(Timeline.duration || 12, start + 3.0);
+      Player.addSticker('🖼️', 0.5, 0.32, 48, start, end, '', 'pop', img);
+      this.renderMemesAndSFXLists();
+      this.toast(`🖼️ Dropped custom meme "${file.name}" at ${Timeline.formatTimecode(start)}`);
+    };
+    img.src = URL.createObjectURL(file);
+  },
+
+  deleteMeme(id) {
+    Player.deleteSticker(id);
+    this.renderMemesAndSFXLists();
+    this.toast('Meme removed');
+  },
+
+  renderMemesAndSFXLists() {
+    Timeline.renderMemeCues(Player.stickers, Player.textOverlays);
+    Timeline.renderMusicAndSFXCues(AudioStudio.musicLoaded, AudioStudio.musicTitle, AudioStudio.sfxEvents);
+
+    const memesContainer = document.getElementById('activeMemesList');
+    if (memesContainer) {
+      memesContainer.innerHTML = '';
+      Player.stickers.forEach(stk => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:var(--sur2);border-radius:6px;font-size:11px;border:1px solid rgba(192,132,252,0.4)';
+        const timeStr = stk.start !== undefined ? ` (${Timeline.formatTimecode(stk.start)}–${Timeline.formatTimecode(stk.end)})` : '';
+        row.innerHTML = `
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:190px;cursor:pointer">${stk.emoji || '🎭'} ${stk.caption || 'Custom Meme'}${timeStr}</span>
+          <button style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:12px" title="Delete meme">✕</button>
+        `;
+        row.querySelector('span').addEventListener('click', () => {
+          if (stk.start !== undefined) Player.seek(stk.start + 0.05);
+        });
+        row.querySelector('button').addEventListener('click', () => this.deleteMeme(stk.id));
+        memesContainer.appendChild(row);
+      });
+    }
+
+    const sfxContainer = document.getElementById('activeSFXList');
+    if (sfxContainer) {
+      sfxContainer.innerHTML = '';
+      AudioStudio.sfxEvents.forEach(s => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:var(--sur2);border-radius:6px;font-size:11px;border:1px solid rgba(251,146,60,0.4)';
+        row.innerHTML = `
+          <span style="cursor:pointer">🔊 ${s.label} @ ${Timeline.formatTimecode(s.time)}</span>
+          <button style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:12px" title="Delete SFX">✕</button>
+        `;
+        row.querySelector('span').addEventListener('click', () => Player.seek(s.time));
+        row.querySelector('button').addEventListener('click', () => this.removeSFXEvent(s.id));
+        sfxContainer.appendChild(row);
+      });
     }
   },
 

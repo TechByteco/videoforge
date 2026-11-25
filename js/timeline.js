@@ -221,6 +221,70 @@ export const Timeline = {
     });
   },
 
+  /**
+   * Render timed Memes, Stickers & Overlays on M1 MEMES track
+   */
+  renderMemeCues(stickers = [], textOverlays = []) {
+    const lane = document.querySelector('.track-memes');
+    if (!lane || !this.duration) return;
+    lane.querySelectorAll('.timeline-meme-chip').forEach(c => c.remove());
+
+    const items = [
+      ...stickers.map(s => ({ id: s.id, type: 'meme', label: `${s.emoji || '🎭'} ${s.caption || 'Meme'}`, start: s.start ?? 0, end: s.end ?? this.duration })),
+      ...textOverlays.map(t => ({ id: t.id, type: 'text', label: `🏷️ ${t.text}`, start: t.start ?? 0, end: t.end ?? this.duration }))
+    ];
+
+    items.forEach(item => {
+      const chip = document.createElement('div');
+      chip.className = 'timeline-meme-chip';
+      const leftPct = Math.max(0, Math.min(100, (item.start / this.duration) * 100));
+      const widthPct = Math.max(2.5, Math.min(100 - leftPct, ((item.end - item.start) / this.duration) * 100));
+      chip.style.left = `${leftPct}%`;
+      chip.style.width = `${widthPct}%`;
+      chip.title = `${item.label} (${this.formatTimecode(item.start)} → ${this.formatTimecode(item.end)})`;
+      chip.innerHTML = `<span>${item.label}</span>`;
+      chip.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.setTime(item.start);
+        if (this.onSeek) this.onSeek(item.start);
+      });
+      lane.appendChild(chip);
+    });
+  },
+
+  /**
+   * Render Background Music loop & scheduled SFX pins on A2 MUSIC/SFX track
+   */
+  renderMusicAndSFXCues(musicLoaded, musicTitle, sfxEvents = []) {
+    const lane = document.querySelector('.track-music');
+    if (!lane || !this.duration) return;
+    lane.querySelectorAll('.timeline-music-chip, .timeline-sfx-chip').forEach(c => c.remove());
+
+    if (musicLoaded) {
+      const bar = document.createElement('div');
+      bar.className = 'timeline-music-chip';
+      bar.style.left = '0%';
+      bar.style.width = '100%';
+      bar.innerHTML = `<span>🎵 ${musicTitle || 'Background Music'}</span>`;
+      lane.appendChild(bar);
+    }
+
+    sfxEvents.forEach(s => {
+      const chip = document.createElement('div');
+      chip.className = 'timeline-sfx-chip';
+      const leftPct = Math.max(0, Math.min(97, (s.time / this.duration) * 100));
+      chip.style.left = `${leftPct}%`;
+      chip.title = `SFX: ${s.label} @ ${this.formatTimecode(s.time)}`;
+      chip.innerHTML = `<span>🔊 ${s.label}</span>`;
+      chip.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.setTime(s.time);
+        if (this.onSeek) this.onSeek(s.time);
+      });
+      lane.appendChild(chip);
+    });
+  },
+
   seekByRatio(ratio) {
     if (!this.duration) return;
     let targetTime = Math.max(0, Math.min(ratio * this.duration, this.duration));
