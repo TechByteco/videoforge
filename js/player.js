@@ -103,48 +103,54 @@ export const Player = {
     let draggingOverlay = null;
     let draggingSticker = null;
 
-    this.canvas.addEventListener('mousedown', (e) => {
+    const getCoords = (e) => {
+      const pt = (e.touches && e.touches[0]) ? e.touches[0] : e;
+      return { clientX: pt.clientX, clientY: pt.clientY };
+    };
+
+    const startCanvasDrag = (e) => {
+      const { clientX, clientY } = getCoords(e);
       const rect = this.canvas.getBoundingClientRect();
-      const mouseXRel = (e.clientX - rect.left) / rect.width;
-      const mouseYRel = (e.clientY - rect.top) / rect.height;
+      const mouseXRel = (clientX - rect.left) / rect.width;
+      const mouseYRel = (clientY - rect.top) / rect.height;
 
       if (FilterEngine.splitScreen) {
         isDraggingSplit = true;
-        this.updateSplitPos(e);
+        this.updateSplitPos({ clientX });
         return;
       }
 
-      // Check stickers first
       for (let i = this.stickers.length - 1; i >= 0; i--) {
         const st = this.stickers[i];
-        if (Math.abs(mouseXRel - (st.x || 0.5)) < 0.08 && Math.abs(mouseYRel - (st.y || 0.3)) < 0.08) {
+        if (Math.abs(mouseXRel - (st.x || 0.5)) < 0.12 && Math.abs(mouseYRel - (st.y || 0.3)) < 0.12) {
           draggingSticker = st;
           return;
         }
       }
 
-      // Check text overlays
       for (let i = this.textOverlays.length - 1; i >= 0; i--) {
         const ov = this.textOverlays[i];
-        if (Math.abs(mouseXRel - (ov.x || 0.5)) < 0.2 && Math.abs(mouseYRel - (ov.y || 0.15)) < 0.08) {
+        if (Math.abs(mouseXRel - (ov.x || 0.5)) < 0.22 && Math.abs(mouseYRel - (ov.y || 0.15)) < 0.10) {
           draggingOverlay = ov;
           return;
         }
       }
 
-      if (e.shiftKey || Math.abs(mouseYRel - (SubtitlesManager.style.positionY || 0.84)) < 0.12) {
+      if (e.shiftKey || Math.abs(mouseYRel - (SubtitlesManager.style.positionY || 0.84)) < 0.14) {
         isDraggingSub = true;
         SubtitlesManager.style.positionY = Math.max(0.1, Math.min(0.92, mouseYRel));
       }
-    });
+    };
 
-    window.addEventListener('mousemove', (e) => {
+    const moveCanvasDrag = (e) => {
+      if (!isDraggingSplit && !isDraggingSub && !draggingOverlay && !draggingSticker) return;
+      const { clientX, clientY } = getCoords(e);
       const rect = this.canvas.getBoundingClientRect();
-      const mouseXRel = Math.max(0.05, Math.min(0.95, (e.clientX - rect.left) / rect.width));
-      const mouseYRel = Math.max(0.05, Math.min(0.95, (e.clientY - rect.top) / rect.height));
+      const mouseXRel = Math.max(0.05, Math.min(0.95, (clientX - rect.left) / rect.width));
+      const mouseYRel = Math.max(0.05, Math.min(0.95, (clientY - rect.top) / rect.height));
 
       if (isDraggingSplit && FilterEngine.splitScreen) {
-        this.updateSplitPos(e);
+        this.updateSplitPos({ clientX });
       } else if (draggingSticker) {
         draggingSticker.x = mouseXRel;
         draggingSticker.y = mouseYRel;
@@ -154,14 +160,21 @@ export const Player = {
       } else if (isDraggingSub) {
         SubtitlesManager.style.positionY = Math.max(0.1, Math.min(0.92, mouseYRel));
       }
-    });
+    };
 
-    window.addEventListener('mouseup', () => {
+    const endCanvasDrag = () => {
       isDraggingSplit = false;
       isDraggingSub = false;
       draggingOverlay = null;
       draggingSticker = null;
-    });
+    };
+
+    this.canvas.addEventListener('mousedown', startCanvasDrag);
+    this.canvas.addEventListener('touchstart', startCanvasDrag, { passive: true });
+    window.addEventListener('mousemove', moveCanvasDrag);
+    window.addEventListener('touchmove', moveCanvasDrag, { passive: true });
+    window.addEventListener('mouseup', endCanvasDrag);
+    window.addEventListener('touchend', endCanvasDrag);
   },
 
   updateSplitPos(e) {

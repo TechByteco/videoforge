@@ -493,35 +493,12 @@ export const Timeline = {
     let isDraggingTrimIn = false;
     let isDraggingTrimOut = false;
 
-    // Direct Trim In drag
-    if (this.trimInEl) {
-      this.trimInEl.addEventListener('mousedown', (e) => {
-        e.stopPropagation();
-        isDraggingTrimIn = true;
-      });
-    }
+    const getClientX = (e) => (e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX);
 
-    // Direct Trim Out drag
-    if (this.trimOutEl) {
-      this.trimOutEl.addEventListener('mousedown', (e) => {
-        e.stopPropagation();
-        isDraggingTrimOut = true;
-      });
-    }
-
-    // Playhead seek on track click/drag
-    this.trackContainer.addEventListener('mousedown', (e) => {
-      if (e.target.closest('.trim-handle') || e.target.closest('.timeline-cue-chip')) return;
-      isDraggingPlayhead = true;
-      const rect = this.trackContainer.getBoundingClientRect();
-      const ratio = (e.clientX - rect.left) / rect.width;
-      this.seekByRatio(ratio);
-    });
-
-    window.addEventListener('mousemove', (e) => {
+    const handleMove = (clientX) => {
       if (!this.trackContainer || !this.duration) return;
       const rect = this.trackContainer.getBoundingClientRect();
-      const posRatio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const posRatio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
       const targetSec = posRatio * this.duration;
 
       if (isDraggingTrimIn) {
@@ -533,12 +510,45 @@ export const Timeline = {
       } else if (isDraggingPlayhead) {
         this.seekByRatio(posRatio);
       }
-    });
+    };
 
-    window.addEventListener('mouseup', () => {
+    const endDrag = () => {
       isDraggingPlayhead = false;
       isDraggingTrimIn = false;
       isDraggingTrimOut = false;
-    });
+    };
+
+    if (this.trimInEl) {
+      const startIn = (e) => { e.stopPropagation(); isDraggingTrimIn = true; };
+      this.trimInEl.addEventListener('mousedown', startIn);
+      this.trimInEl.addEventListener('touchstart', startIn, { passive: true });
+    }
+
+    if (this.trimOutEl) {
+      const startOut = (e) => { e.stopPropagation(); isDraggingTrimOut = true; };
+      this.trimOutEl.addEventListener('mousedown', startOut);
+      this.trimOutEl.addEventListener('touchstart', startOut, { passive: true });
+    }
+
+    const startSeek = (e) => {
+      if (e.target.closest('.trim-handle') || e.target.closest('.timeline-cue-chip') || e.target.closest('.timeline-meme-chip') || e.target.closest('.timeline-sfx-chip')) return;
+      isDraggingPlayhead = true;
+      const rect = this.trackContainer.getBoundingClientRect();
+      const ratio = (getClientX(e) - rect.left) / rect.width;
+      this.seekByRatio(ratio);
+    };
+
+    this.trackContainer.addEventListener('mousedown', startSeek);
+    this.trackContainer.addEventListener('touchstart', startSeek, { passive: true });
+
+    window.addEventListener('mousemove', (e) => handleMove(e.clientX));
+    window.addEventListener('touchmove', (e) => {
+      if (isDraggingPlayhead || isDraggingTrimIn || isDraggingTrimOut) {
+        handleMove(getClientX(e));
+      }
+    }, { passive: true });
+
+    window.addEventListener('mouseup', endDrag);
+    window.addEventListener('touchend', endDrag);
   }
 };

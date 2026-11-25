@@ -263,7 +263,12 @@ nav {
   padding: 0 14px;
   gap: 6px;
   z-index: 10;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.toolbar::-webkit-scrollbar { display: none; }
 
 .tbb {
   padding: 6px 11px;
@@ -1210,18 +1215,110 @@ select:focus, input[type=text]:focus {
   background: var(--bdr-light);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1080px) {
   .app-main-grid {
     grid-template-columns: 50px 1fr 280px;
   }
 }
 
-@media (max-width: 720px) {
-  .app-main-grid {
-    grid-template-columns: 48px 1fr;
+@media (max-width: 768px) {
+  html, body {
+    height: auto;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
+
+  nav {
+    height: auto;
+    min-height: 50px;
+    flex-wrap: wrap;
+    padding: 6px 10px;
+    gap: 6px;
+  }
+
+  .ntabs {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+    justify-content: flex-start;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .app-main-grid {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    min-height: calc(100dvh - 90px);
+    overflow: visible;
+  }
+
+  .side-toolbar {
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 6px 8px;
+    gap: 4px;
+    border-right: none;
+    border-bottom: 1px solid var(--bdr);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .side-toolbar .sdiv {
+    width: 1px;
+    height: 24px;
+    margin: 0 4px;
+  }
+
+  .side-toolbar .sbt {
+    min-width: 52px;
+    flex-shrink: 0;
+  }
+
+  .workspace {
+    overflow: visible;
+  }
+
+  .canvas-stage {
+    min-height: 240px;
+    max-height: 44dvh;
+    padding: 8px;
+  }
+
+  .timeline-dock {
+    height: auto;
+    min-height: 195px;
+  }
+
+  .timeline-header {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 8px;
+  }
+
   .inspector-panel {
-    display: none;
+    display: flex !important;
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--bdr);
+    height: auto;
+    overflow: visible;
+  }
+
+  .inspector-body {
+    max-height: none;
+    overflow: visible;
+    padding-bottom: 28px;
+  }
+
+  .modal-box {
+    width: calc(100vw - 20px) !important;
+    max-width: 100% !important;
+    max-height: 88dvh;
+    overflow-y: auto;
+    padding: 18px 14px;
   }
 }
 
