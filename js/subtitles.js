@@ -8,15 +8,29 @@ export const SubtitlesManager = {
   cues: [],
 
   fonts: [
-    { id: 'Anton', name: 'Anton — Viral Impact' },
-    { id: 'Syne', name: 'Syne — Bold Modern' },
-    { id: 'Bebas Neue', name: 'Bebas Neue — Cinematic' },
-    { id: 'Montserrat', name: 'Montserrat — Editorial' },
-    { id: 'Instrument Sans', name: 'Instrument Sans — Clean' },
-    { id: 'DM Mono', name: 'DM Mono — Technical' },
-    { id: 'Playfair Display', name: 'Playfair — Luxury Serif' },
-    { id: 'Orbitron', name: 'Orbitron — Futuristic' },
-    { id: 'Caveat', name: 'Caveat — Handwritten' }
+    { id: 'Anton', name: 'Anton — Hormozi Viral Impact' },
+    { id: 'Archivo Black', name: 'Archivo Black — Heavy Shorts' },
+    { id: 'Bangers', name: 'Bangers — YouTube Comic Pop' },
+    { id: 'Luckiest Guy', name: 'Luckiest Guy — MrBeast Chunky' },
+    { id: 'Bebas Neue', name: 'Bebas Neue — Condensed Pro' },
+    { id: 'Montserrat', name: 'Montserrat — Bold Creator' },
+    { id: 'Poppins', name: 'Poppins — Modern YouTube' },
+    { id: 'Rubik', name: 'Rubik — Rounded Explainer' },
+    { id: 'Oswald', name: 'Oswald — Vox Documentary' },
+    { id: 'Plus Jakarta Sans', name: 'Plus Jakarta — Ali Abdaal Clean' },
+    { id: 'Inter', name: 'Inter — MKBHD Minimalist' },
+    { id: 'Space Grotesk', name: 'Space Grotesk — Tech SaaS' },
+    { id: 'Syne', name: 'Syne — Editorial Display' },
+    { id: 'Russo One', name: 'Russo One — Gaming & Sports' },
+    { id: 'Bungee', name: 'Bungee — Urban Block' },
+    { id: 'Righteous', name: 'Righteous — Podcast & Retro' },
+    { id: 'Permanent Marker', name: 'Permanent Marker — Vlog Callout' },
+    { id: 'Orbitron', name: 'Orbitron — Futuristic Sci-Fi' },
+    { id: 'Cinzel', name: 'Cinzel — Epic Movie Trailer' },
+    { id: 'Playfair Display', name: 'Playfair Display — Luxury Serif' },
+    { id: 'Instrument Sans', name: 'Instrument Sans — Studio Clean' },
+    { id: 'DM Mono', name: 'DM Mono — Code & Technical' },
+    { id: 'Caveat', name: 'Caveat — Handwritten Story' }
   ],
 
   motionPresets: [
@@ -104,6 +118,82 @@ export const SubtitlesManager = {
         positionY: 0.86,
         motion: 'fade-slide',
         uppercase: false,
+        burnIn: true
+      }
+    },
+    {
+      id: 'youtube-bangers',
+      name: '💥 YouTube Bangers Pop',
+      style: {
+        font: 'Bangers',
+        size: 46,
+        weight: '700',
+        color: '#ffffff',
+        highlightColor: '#ff3b30',
+        strokeColor: '#000000',
+        strokeWidth: 7,
+        showBadge: false,
+        backgroundColor: 'transparent',
+        positionY: 0.80,
+        motion: 'hormozi-bounce',
+        uppercase: true,
+        burnIn: true
+      }
+    },
+    {
+      id: 'vox-doc',
+      name: '📰 Vox Documentary',
+      style: {
+        font: 'Oswald',
+        size: 34,
+        weight: '700',
+        color: '#fef08a',
+        highlightColor: '#ffffff',
+        strokeColor: '#000000',
+        strokeWidth: 3,
+        showBadge: true,
+        backgroundColor: 'rgba(15, 15, 18, 0.90)',
+        positionY: 0.85,
+        motion: 'fade-slide',
+        uppercase: true,
+        burnIn: true
+      }
+    },
+    {
+      id: 'ali-clean',
+      name: '🎥 Ali Abdaal Clean',
+      style: {
+        font: 'Plus Jakarta Sans',
+        size: 30,
+        weight: '800',
+        color: '#ffffff',
+        highlightColor: '#38bdf8',
+        strokeColor: '#000000',
+        strokeWidth: 3,
+        showBadge: true,
+        backgroundColor: 'rgba(15, 23, 42, 0.78)',
+        positionY: 0.84,
+        motion: 'karaoke',
+        uppercase: false,
+        burnIn: true
+      }
+    },
+    {
+      id: 'cinema-trailer',
+      name: '🎬 Cinema Trailer Serif',
+      style: {
+        font: 'Cinzel',
+        size: 34,
+        weight: '900',
+        color: '#f8fafc',
+        highlightColor: '#fbbf24',
+        strokeColor: '#000000',
+        strokeWidth: 3,
+        showBadge: false,
+        backgroundColor: 'transparent',
+        positionY: 0.86,
+        motion: 'fade-slide',
+        uppercase: true,
         burnIn: true
       }
     }

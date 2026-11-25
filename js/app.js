@@ -616,6 +616,9 @@ export const App = {
     if (SubtitlesManager.applyCaptionPreset(presetId)) {
       if (this.dom.subFontSelect) this.dom.subFontSelect.value = SubtitlesManager.style.font;
       if (this.dom.subMotionSelect) this.dom.subMotionSelect.value = SubtitlesManager.style.motion;
+      if (document.fonts && document.fonts.load) {
+        document.fonts.load(`${SubtitlesManager.style.weight || '700'} ${SubtitlesManager.style.size || 36}px '${SubtitlesManager.style.font}'`).catch(() => {});
+      }
       this.renderSubtitlesList();
       const p = SubtitlesManager.captionPresets.find(x => x.id === presetId);
       this.toast(`Applied Preset: ${p ? p.name : presetId}`);
