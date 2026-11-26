@@ -17,6 +17,7 @@ export const App = {
   activeInspectorTab: 'edit',
 
   init() {
+    this.restoreTheme();
     this.cacheDOM();
     this.initPlayer();
     this.renderFilterGallery();
@@ -27,6 +28,11 @@ export const App = {
     this.pushHistoryState('Initial Clean State');
     this.renderSubtitlesList();
     this.switchTab('edit');
+    this.startStatusBarLoop();
+    this.renderMemesList();
+    this.renderSFXList();
+    // Defer color wheels until DOM is ready
+    requestAnimationFrame(() => this.initColorWheels());
     this.toast('⚡ VideoForge Pro Ready');
     // Init Hub after app is ready
     Hub.init(this).catch(err => console.warn('Hub init error:', err));
@@ -90,6 +96,7 @@ export const App = {
       this.dom.timeDur.textContent = Timeline.formatTimecode(dur);
       this.dom.upCard.style.display = 'none';
       this.dom.stageContainer.classList.add('active');
+      this.updateTimelineRuler();
       this.toast(`Loaded: ${w}x${h} (${Math.round(dur)}s)`);
     };
 
@@ -1170,6 +1177,262 @@ export const App = {
     this.toastTimer = setTimeout(() => {
       this.dom.toastEl.classList.remove('show');
     }, 2800);
+  },
+
+  /* ===== THEME TOGGLE ===== */
+  toggleTheme() {
+    const html = document.documentElement;
+    const isLight = html.dataset.theme === 'light';
+    html.dataset.theme = isLight ? 'dark' : 'light';
+    try { localStorage.setItem('vf_theme', html.dataset.theme); } catch(e) {}
+    this.toast(isLight ? '🌙 Dark Mode' : '☀️ Light Mode');
+  },
+
+  restoreTheme() {
+    try {
+      const saved = localStorage.getItem('vf_theme');
+      if (saved) document.documentElement.dataset.theme = saved;
+    } catch(e) {}
+  },
+
+  /* ===== ACCORDION SECTION TOGGLE ===== */
+  toggleSection(headEl) {
+    const body = headEl.nextElementSibling;
+    if (!body) return;
+    const isCollapsed = body.classList.contains('collapsed');
+    headEl.classList.toggle('collapsed', !isCollapsed);
+    body.classList.toggle('collapsed', !isCollapsed);
+  },
+
+  /* ===== CLIP SPEED RAMP ===== */
+  setClipSpeed(speed) {
+    this._clipSpeed = speed;
+    const vid = this.dom.sourceVideo;
+    if (vid) vid.playbackRate = speed;
+    // Update all speed preset active states
+    document.querySelectorAll('.btn-speed-preset').forEach(btn => {
+      const val = parseFloat(btn.textContent);
+      btn.classList.toggle('active', Math.abs(val - speed) < 0.01);
+    });
+    const valEl = document.getElementById('valSpeed');
+    if (valEl) valEl.textContent = speed.toFixed(2) + '×';
+    this.toast(`⚡ Speed: ${speed.toFixed(2)}×`);
+  },
+
+  /* ===== STATUS BAR UPDATER ===== */
+  _statusBarRAF: null,
+
+  startStatusBarLoop() {
+    const update = () => {
+      const vid = this.dom.sourceVideo;
+      const tcEl = document.getElementById('statusTimecode');
+      const resEl = document.getElementById('statusResolution');
+      const clipsEl = document.getElementById('statusClipCount');
+      const zoomEl = document.getElementById('statusZoom');
+
+      if (tcEl && vid) {
+        const t = vid.currentTime || 0;
+        const mins = Math.floor(t / 60);
+        const secs = Math.floor(t % 60);
+        const ms = Math.floor((t % 1) * 1000);
+        tcEl.textContent = `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}.${String(ms).padStart(3,'0')}`;
+      }
+      if (resEl && vid && vid.videoWidth) {
+        resEl.textContent = `${vid.videoWidth} × ${vid.videoHeight}`;
+      }
+      if (clipsEl && window.Timeline) {
+        const count = (window.Timeline.clips || []).length;
+        clipsEl.textContent = `${count} clip${count !== 1 ? 's' : ''}`;
+      }
+      if (zoomEl && window.Timeline) {
+        zoomEl.textContent = `${(window.Timeline.zoomLevel || 1).toFixed(1)}×`;
+      }
+      this._statusBarRAF = requestAnimationFrame(update);
+    };
+    this._statusBarRAF = requestAnimationFrame(update);
+  },
+
+  markUnsaved() {
+    const el = document.getElementById('statusUnsaved');
+    if (el) el.style.display = 'block';
+  },
+
+  markSaved() {
+    const el = document.getElementById('statusUnsaved');
+    if (el) el.style.display = 'none';
+  },
+
+  setProjectName(name) {
+    const el = document.getElementById('statusProjectName');
+    if (el) el.textContent = name || 'Untitled Project';
+  },
+
+  /* ===== COLOR WHEELS (LIFT / GAMMA / GAIN) ===== */
+  _colorWheels: {
+    lift:  { r: 0, g: 0, b: 0 },
+    gamma: { r: 0, g: 0, b: 0 },
+    gain:  { r: 0, g: 0, b: 0 }
+  },
+
+  initColorWheels() {
+    const wheels = [
+      { id: 'cwLift',  key: 'lift'  },
+      { id: 'cwGamma', key: 'gamma' },
+      { id: 'cwGain',  key: 'gain'  }
+    ];
+    wheels.forEach(({ id, key }) => {
+      const canvas = document.getElementById(id);
+      if (!canvas) return;
+      this._drawColorWheel(canvas);
+      const handler = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+        const cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+        const color = this._sampleColorWheel(canvas, cx, cy);
+        this._colorWheels[key] = color;
+        this._applyColorWheels();
+        this._drawColorWheelCursor(canvas, cx, cy);
+      };
+      canvas.addEventListener('click', handler);
+      canvas.addEventListener('touchend', (e) => { e.preventDefault(); handler(e); }, { passive: false });
+    });
+  },
+
+  _drawColorWheel(canvas) {
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    const cx = w / 2, cy = h / 2, r = Math.min(cx, cy) - 2;
+    for (let angle = 0; angle < 360; angle++) {
+      const startAngle = (angle - 1) * Math.PI / 180;
+      const endAngle = (angle + 1) * Math.PI / 180;
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      grad.addColorStop(0, '#fff');
+      grad.addColorStop(1, `hsl(${angle}, 100%, 50%)`);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, r, startAngle, endAngle);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+    // Dark outer ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  },
+
+  _drawColorWheelCursor(canvas, x, y) {
+    this._drawColorWheel(canvas);
+    const ctx = canvas.getContext('2d');
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  },
+
+  _sampleColorWheel(canvas, x, y) {
+    const ctx = canvas.getContext('2d');
+    const pixel = ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data;
+    return { r: pixel[0], g: pixel[1], b: pixel[2] };
+  },
+
+  _applyColorWheels() {
+    // Apply lift/gamma/gain as CSS overlay matrices via FilterEngine
+    const { lift, gamma, gain } = this._colorWheels;
+    FilterEngine.liftColor = lift;
+    FilterEngine.gammaColor = gamma;
+    FilterEngine.gainColor = gain;
+  },
+
+  resetColorWheels() {
+    this._colorWheels = {
+      lift:  { r: 0, g: 0, b: 0 },
+      gamma: { r: 0, g: 0, b: 0 },
+      gain:  { r: 0, g: 0, b: 0 }
+    };
+    FilterEngine.liftColor = null;
+    FilterEngine.gammaColor = null;
+    FilterEngine.gainColor = null;
+    // Redraw wheels without cursor
+    ['cwLift','cwGamma','cwGain'].forEach(id => {
+      const c = document.getElementById(id);
+      if (c) this._drawColorWheel(c);
+    });
+    this.toast('Color Wheels Reset');
+  },
+
+  /* ===== RENDER MEMES / SFX LIST (called on init) ===== */
+  renderMemesList() {
+    const listEl = document.getElementById('activeMemesList');
+    if (!listEl) return;
+    const memes = Player.overlays ? Player.overlays.filter(o => o.type === 'meme' || o.emoji) : [];
+    if (!memes.length) {
+      listEl.innerHTML = '<div style="font-size:10px;color:var(--mut);text-align:center;padding:4px 0">No memes on timeline yet</div>';
+      return;
+    }
+    listEl.innerHTML = memes.map((m, i) => `
+      <div style="display:flex;align-items:center;gap:6px;padding:4px 6px;background:var(--sur3);border-radius:5px;border:1px solid var(--bdr)">
+        <span style="font-size:14px">${m.emoji || '📌'}</span>
+        <span style="flex:1;font-size:10px;color:var(--txt-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.label || m.text || 'Overlay'} @ ${(m.startTime || 0).toFixed(1)}s</span>
+        <button style="padding:2px 6px;background:rgba(255,71,87,0.1);color:var(--danger);border:1px solid rgba(255,71,87,0.2);border-radius:4px;font-size:9px;cursor:pointer" onclick="Player.overlays.splice(${i},1);App.renderMemesList()">✕</button>
+      </div>
+    `).join('');
+  },
+
+  renderSFXList() {
+    const listEl = document.getElementById('activeSFXList');
+    if (!listEl) return;
+    const sfxList = window.AudioStudio ? (AudioStudio.sfxEvents || []) : [];
+    if (!sfxList.length) {
+      listEl.innerHTML = '<div style="font-size:10px;color:var(--mut);text-align:center;padding:4px 0">No SFX on A2 track yet</div>';
+      return;
+    }
+    listEl.innerHTML = sfxList.map((s, i) => `
+      <div style="display:flex;align-items:center;gap:6px;padding:4px 6px;background:var(--sur3);border-radius:5px;border:1px solid var(--bdr)">
+        <span style="font-size:12px">🔊</span>
+        <span style="flex:1;font-size:10px;color:var(--txt-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.name || s.type} @ ${(s.time || 0).toFixed(1)}s</span>
+        <button style="padding:2px 6px;background:rgba(255,71,87,0.1);color:var(--danger);border:1px solid rgba(255,71,87,0.2);border-radius:4px;font-size:9px;cursor:pointer" onclick="AudioStudio.sfxEvents.splice(${i},1);App.renderSFXList()">✕</button>
+      </div>
+    `).join('');
+  },
+
+  /* ===== DYNAMIC TIMELINE RULER ===== */
+  updateTimelineRuler() {
+    const ruler = document.querySelector('.timeline-ruler');
+    if (!ruler) return;
+    const dur = (this.dom.sourceVideo && this.dom.sourceVideo.duration) ? this.dom.sourceVideo.duration : 0;
+    if (!dur || dur < 1) return;
+
+    ruler.innerHTML = '';
+    const zoom = window.Timeline ? (Timeline.zoomLevel || 1) : 1;
+    const visibleDur = dur / zoom;
+    // Choose tick interval
+    let interval = 5;
+    if (visibleDur <= 15) interval = 1;
+    else if (visibleDur <= 60) interval = 5;
+    else if (visibleDur <= 180) interval = 15;
+    else if (visibleDur <= 600) interval = 30;
+    else interval = 60;
+
+    for (let t = 0; t <= dur; t += interval) {
+      const pct = (t / dur) * 100;
+      const tick = document.createElement('span');
+      tick.className = 'ruler-tick major';
+      tick.style.position = 'absolute';
+      tick.style.left = `${pct}%`;
+      const mins = Math.floor(t / 60);
+      const secs = Math.floor(t % 60);
+      tick.textContent = `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+      ruler.appendChild(tick);
+    }
   }
 };
 

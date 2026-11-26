@@ -77,6 +77,10 @@
       <button class="btn-icon" title="Keyboard Shortcuts" onclick="document.getElementById('modalShortcuts').classList.add('open')">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="6" y1="8" x2="6" y2="8"/><line x1="10" y1="8" x2="10" y2="8"/><line x1="14" y1="8" x2="14" y2="8"/><line x1="18" y1="8" x2="18" y2="8"/><line x1="8" y1="16" x2="16" y2="16"/></svg>
       </button>
+      <button class="btn-theme-toggle" title="Toggle Light/Dark Theme" onclick="App.toggleTheme()">
+        <svg class="icon-moon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg class="icon-sun" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      </button>
       <button class="tbb pri" onclick="App.openExportModal()">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
         Export Video
@@ -390,6 +394,33 @@
           </div>
         </div>
 
+        <!-- STATUS BAR -->
+        <div class="status-bar" id="statusBar">
+          <div class="status-item">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusProjectName" class="status-project-name">No Project</span>
+          </div>
+          <div class="status-sep"></div>
+          <div class="status-item accent">
+            <svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span id="statusTimecode">00:00.000</span>
+          </div>
+          <div class="status-sep"></div>
+          <div class="status-item">
+            <span id="statusResolution">— × —</span>
+          </div>
+          <div class="status-sep"></div>
+          <div class="status-item">
+            <span id="statusClipCount">0 clips</span>
+          </div>
+          <div class="status-sep"></div>
+          <div class="status-item">
+            <span>Zoom</span>
+            <span id="statusZoom">1×</span>
+          </div>
+          <span class="status-unsaved" id="statusUnsaved" style="display:none">● Unsaved</span>
+        </div>
+
       </main>
 
       <!-- RIGHT PROPERTIES & INSPECTOR PANEL -->
@@ -432,7 +463,7 @@
 
             <!-- Transform & Scale -->
             <div class="inspector-section">
-              <div class="section-head"><span class="section-title">Transform &amp; Scale</span></div>
+              <div class="section-head" onclick="App.toggleSection(this)"><span class="section-title">Transform &amp; Scale</span><svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
               <div class="section-body">
                 <div class="preset-grid" style="grid-template-columns:repeat(4,1fr)">
                   <button class="btn-preset" onclick="FilterEngine.rotation = (FilterEngine.rotation + 90) % 360">Rotate 90°</button>
@@ -441,15 +472,36 @@
                   <button class="btn-preset" onclick="FilterEngine.rotation=0;FilterEngine.flipH=false;FilterEngine.flipV=false">Reset</button>
                 </div>
                 <div class="control-row">
-                  <div class="control-label"><span>Zoom Scale</span></div>
-                  <div class="range-wrap"><input type="range" min="1.0" max="3.0" step="0.1" value="1.0" oninput="FilterEngine.zoomScale=parseFloat(this.value)"></div>
+                  <div class="control-label"><span>Zoom Scale</span><span class="val" id="valZoom">1.0×</span></div>
+                  <div class="range-wrap"><input type="range" min="1.0" max="3.0" step="0.1" value="1.0" oninput="FilterEngine.zoomScale=parseFloat(this.value);document.getElementById('valZoom').textContent=parseFloat(this.value).toFixed(1)+'×'"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Clip Speed Ramp -->
+            <div class="inspector-section">
+              <div class="section-head" onclick="App.toggleSection(this)"><span class="section-title">⚡ Clip Speed Ramp</span><svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+              <div class="section-body">
+                <div class="control-row">
+                  <div class="control-label"><span>Playback Speed</span><span class="val" id="valSpeed">1.0×</span></div>
+                  <div class="range-wrap">
+                    <input type="range" id="clipSpeedSlider" min="0.1" max="4.0" step="0.05" value="1.0" oninput="App.setClipSpeed(parseFloat(this.value))">
+                  </div>
+                </div>
+                <div class="speed-presets">
+                  <button class="btn-speed-preset" onclick="App.setClipSpeed(0.25);document.getElementById('clipSpeedSlider').value=0.25">0.25×</button>
+                  <button class="btn-speed-preset" onclick="App.setClipSpeed(0.5);document.getElementById('clipSpeedSlider').value=0.5">0.5×</button>
+                  <button class="btn-speed-preset active" onclick="App.setClipSpeed(1.0);document.getElementById('clipSpeedSlider').value=1.0">1×</button>
+                  <button class="btn-speed-preset" onclick="App.setClipSpeed(1.5);document.getElementById('clipSpeedSlider').value=1.5">1.5×</button>
+                  <button class="btn-speed-preset" onclick="App.setClipSpeed(2.0);document.getElementById('clipSpeedSlider').value=2.0">2×</button>
+                  <button class="btn-speed-preset" onclick="App.setClipSpeed(4.0);document.getElementById('clipSpeedSlider').value=4.0">4×</button>
                 </div>
               </div>
             </div>
 
             <!-- Manual Color Grading -->
             <div class="inspector-section">
-              <div class="section-head"><span class="section-title">Manual Color Adjustments</span></div>
+              <div class="section-head" onclick="App.toggleSection(this)"><span class="section-title">Manual Color Adjustments</span><svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
               <div class="section-body">
                 <div class="control-row">
                   <div class="control-label"><span>Brightness</span><span class="val">0</span></div>
@@ -472,15 +524,46 @@
                   <div class="range-wrap"><input type="range" id="rw" min="-100" max="100" value="0"></div>
                 </div>
                 <div class="control-row">
-                  <div class="control-label"><span>Hue Rotation</span><span class="val">0</span></div>
+                  <div class="control-label"><span>Hue Rotation</span><span class="val">0°</span></div>
                   <div class="range-wrap"><input type="range" id="rh" min="0" max="360" value="0"></div>
                 </div>
+                <div class="control-row">
+                  <div class="control-label"><span>Vignette</span><span class="val">0</span></div>
+                  <div class="range-wrap"><input type="range" id="rvign" min="0" max="100" value="0" oninput="FilterEngine.vignette=parseFloat(this.value);this.previousElementSibling.querySelector('.val').textContent=this.value"></div>
+                </div>
+                <div class="control-row">
+                  <div class="control-label"><span>Chromatic Aberration</span><span class="val">0</span></div>
+                  <div class="range-wrap"><input type="range" id="rca" min="0" max="20" step="0.5" value="0" oninput="FilterEngine.chromaticAberration=parseFloat(this.value);this.previousElementSibling.querySelector('.val').textContent=this.value"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Color Wheels (Lift / Gamma / Gain) -->
+            <div class="inspector-section">
+              <div class="section-head" onclick="App.toggleSection(this)"><span class="section-title">🎨 Color Wheels — Lift / Gamma / Gain</span><svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+              <div class="section-body">
+                <div class="color-wheel-row">
+                  <div class="color-wheel-item">
+                    <canvas class="color-wheel-canvas" id="cwLift" width="64" height="64" title="Shadows (Lift)"></canvas>
+                    <div class="color-wheel-label">Lift (Shadows)</div>
+                  </div>
+                  <div class="color-wheel-item">
+                    <canvas class="color-wheel-canvas" id="cwGamma" width="64" height="64" title="Midtones (Gamma)"></canvas>
+                    <div class="color-wheel-label">Gamma (Mids)</div>
+                  </div>
+                  <div class="color-wheel-item">
+                    <canvas class="color-wheel-canvas" id="cwGain" width="64" height="64" title="Highlights (Gain)"></canvas>
+                    <div class="color-wheel-label">Gain (Highlights)</div>
+                  </div>
+                </div>
+                <div style="font-size:10px;color:var(--txt-dim);text-align:center">Click wheels to tint shadows, mids, or highlights</div>
+                <button class="btn-preset" onclick="App.resetColorWheels()" style="width:100%">Reset Color Wheels</button>
               </div>
             </div>
 
             <!-- Text Titles, Viral Memes & Stickers -->
             <div class="inspector-section" id="memeSection">
-              <div class="section-head"><span class="section-title">🎭 Memes, Reactions &amp; Overlays (At Playhead)</span></div>
+              <div class="section-head" onclick="App.toggleSection(this)"><span class="section-title">🎭 Memes, Reactions &amp; Overlays (At Playhead)</span><svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
               <div class="section-body">
                 <div style="display:flex;gap:6px">
                   <input type="text" id="newTextOverlayInput" placeholder="Enter title or lower-third..." style="flex:1">

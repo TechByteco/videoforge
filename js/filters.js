@@ -80,6 +80,11 @@ export const FilterEngine = {
   offscreenCanvas: null,
   offscreenCtx: null,
 
+  // Color Wheels (Lift / Gamma / Gain)
+  liftColor: null,   // { r, g, b } or null
+  gammaColor: null,
+  gainColor: null,
+
   // 24 Curated Filters
   filterLibrary: [
     { id: 'none', name: 'Original', cat: 'standard', color: '#888' },
@@ -140,6 +145,9 @@ export const FilterEngine = {
     this.stabilizeEnabled = false;
     this.autoReframe = false;
     this.splitScreen = false;
+    this.liftColor = null;
+    this.gammaColor = null;
+    this.gainColor = null;
   },
 
   getCanvasFilterString(includeLUT = true) {
@@ -544,6 +552,39 @@ export const FilterEngine = {
       grad.addColorStop(1, `rgba(0,0,0,${this.vignette / 100})`);
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, h);
+    }
+
+    // Color Wheels — Lift (Shadows), Gamma (Midtones), Gain (Highlights)
+    if (this.liftColor || this.gammaColor || this.gainColor) {
+      ctx.save();
+      if (this.liftColor) {
+        const { r, g, b } = this.liftColor;
+        const strength = 0.08;
+        ctx.fillStyle = `rgba(${r},${g},${b},${strength})`;
+        const liftGrad = ctx.createRadialGradient(w/2,h/2,0,w/2,h/2,Math.max(w,h));
+        liftGrad.addColorStop(0, `rgba(${r},${g},${b},0)`);
+        liftGrad.addColorStop(1, `rgba(${r},${g},${b},${strength * 1.6})`);
+        ctx.fillStyle = liftGrad;
+        ctx.globalCompositeOperation = 'screen';
+        ctx.fillRect(0, 0, w, h);
+      }
+      if (this.gammaColor) {
+        const { r, g, b } = this.gammaColor;
+        ctx.fillStyle = `rgba(${r},${g},${b},0.06)`;
+        ctx.globalCompositeOperation = 'overlay';
+        ctx.fillRect(0, 0, w, h);
+      }
+      if (this.gainColor) {
+        const { r, g, b } = this.gainColor;
+        const gainGrad = ctx.createRadialGradient(w/2,h/2,0,w/2,h/2,Math.max(w,h)*0.5);
+        gainGrad.addColorStop(0, `rgba(${r},${g},${b},0.1)`);
+        gainGrad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+        ctx.fillStyle = gainGrad;
+        ctx.globalCompositeOperation = 'screen';
+        ctx.fillRect(0, 0, w, h);
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.restore();
     }
 
     if (this.letterbox > 0) {
