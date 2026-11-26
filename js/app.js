@@ -479,6 +479,11 @@ export const App = {
         return;
       }
 
+      const startBtn = document.getElementById('btnStartWhisper');
+      const cancelBtn = document.getElementById('btnCancelWhisper');
+      if (startBtn) { startBtn.disabled = true; startBtn.textContent = '⏳ Transcribing in Background…'; }
+      if (cancelBtn) cancelBtn.style.display = 'inline-block';
+
       setStatus('Preparing audio track for Whisper AI…', 8);
       try {
         await SubtitlesManager.transcribeWithWhisperAI({
@@ -487,7 +492,10 @@ export const App = {
           language: globalLang,
           duration: dur,
           maxWordsPerCue: 6,
-          onProgress: (msg, pct) => setStatus(msg, pct)
+          onProgress: (msg, pct) => setStatus(msg, pct),
+          onPartialCues: () => {
+            this.renderSubtitlesList();
+          }
         });
 
         if (!SubtitlesManager.cues.length) {
@@ -505,8 +513,11 @@ export const App = {
         setTimeout(() => this.closeModal('modalAutoSubs'), 1200);
       } catch (e) {
         console.error('Whisper AI transcription error:', e);
-        setStatus(`⚠️ Transcription failed: ${e.message || 'Check audio track or internet for initial model download.'}`, 0);
-        this.toast('⚠️ Whisper AI error: ' + (e.message || 'Failed'));
+        setStatus(`⚠️ ${e.message || 'Check audio track or internet for initial model download.'}`, 0);
+        this.toast('⚠️ ' + (e.message || 'Whisper AI error'));
+      } finally {
+        if (startBtn) { startBtn.disabled = false; startBtn.textContent = '✨ Transcribe Video Audio Now →'; }
+        if (cancelBtn) cancelBtn.style.display = 'none';
       }
 
     } else if (mode === 'script-align') {
@@ -561,6 +572,11 @@ export const App = {
   stopLiveMic() {
     SubtitlesManager.stopLiveTranscription();
     this.toast('Stopped live mic transcription');
+  },
+
+  cancelAutoSubtitles() {
+    SubtitlesManager.cancelWhisperTranscription();
+    this.toast('Cancelled Whisper AI transcription');
   },
 
   renderTextOverlaysList() {

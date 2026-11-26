@@ -352,6 +352,20 @@ export const SubtitlesManager = {
   },
 
   _whisperPipelines: {},
+  _whisperWorker: null,
+  _whisperJobId: 0,
+  _whisperReject: null,
+
+  cancelWhisperTranscription() {
+    if (this._whisperWorker) {
+      this._whisperWorker.terminate();
+      this._whisperWorker = null;
+    }
+    if (this._whisperReject) {
+      this._whisperReject(new Error('Transcription cancelled by user.'));
+      this._whisperReject = null;
+    }
+  },
 
   /**
    * Extract and resample audio from a File or URL into 16kHz Mono Float32Array PCM for Whisper AI
@@ -484,88 +498,79 @@ export const SubtitlesManager = {
   },
 
   /**
-   * Real On-Device Whisper AI Speech-to-Text Transcription (100% Client-Side WebAssembly/WebGPU)
+   * Real On-Device Whisper AI Speech-to-Text Transcription (Runs in background Web Worker)
    */
-  async transcribeWithWhisperAI({ mediaFile, mediaUrl, language = 'en-US', duration = 30, maxWordsPerCue = 6, onProgress }) {
-    const isEnglish = !language || language.toLowerCase().startsWith('en');
-    const modelId = isEnglish ? 'Xenova/whisper-tiny.en' : 'Xenova/whisper-tiny';
+  async transcribeWithWhisperAI({ mediaFile, mediaUrl, language = 'en-US', duration = 30, maxWordsPerCue = 6, onProgress, onPartialCues }) {
+    // Cancel any previous running job
+    if (this._whisperReject) {
+      this._whisperReject(new Error('Superseded by new transcription job.'));
+      this._whisperReject = null;
+    }
 
     onProgress?.('Extracting & resampling 16kHz audio track…', 10);
     const { pcm, duration: audioDur } = await this.extract16kMonoPCM(mediaFile, mediaUrl);
     const effectiveDur = audioDur || duration || 30;
 
-    onProgress?.(`Loading Whisper AI speech model (${isEnglish ? 'English' : language})…`, 22);
-    if (!this._whisperPipelines[modelId]) {
-      const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.4.0');
-      env.allowLocalModels = false;
-      env.useBrowserCache = true;
-
-      this._whisperPipelines[modelId] = await pipeline('automatic-speech-recognition', modelId, {
-        progress_callback: (info) => {
-          if (info && typeof info.progress === 'number') {
-            const pct = Math.min(72, 22 + Math.round(info.progress * 0.5));
-            const fileLabel = info.file ? ` (${info.file.split('/').pop()})` : '';
-            onProgress?.(`Downloading Whisper AI model${fileLabel}: ${Math.round(info.progress)}%`, pct);
-          }
-        }
-      });
-    }
-
-    const transcriber = this._whisperPipelines[modelId];
-    onProgress?.('Transcribing spoken dialogue with Whisper AI…', 78);
-
-    const langMap = {
-      es: 'spanish', fr: 'french', de: 'german', hi: 'hindi', ar: 'arabic',
-      ja: 'japanese', pt: 'portuguese', it: 'italian', zh: 'chinese', ko: 'korean'
-    };
-    const shortCode = (language || 'en-US').split('-')[0].toLowerCase();
-    const opts = {
-      chunk_length_s: 30,
-      stride_length_s: 5,
-      return_timestamps: true
-    };
-    if (!isEnglish && langMap[shortCode]) {
-      opts.language = langMap[shortCode];
-      opts.task = 'transcribe';
-    }
-
-    const result = await transcriber(pcm, opts);
-    onProgress?.('Formatting & syncing subtitle cues…', 95);
-
     this.cues = [];
-    const chunks = Array.isArray(result?.chunks) ? result.chunks : [];
-    if (chunks.length > 0) {
-      for (const ch of chunks) {
-        const ts = ch.timestamp || [0, effectiveDur];
-        const cStart = typeof ts[0] === 'number' ? Math.max(0, ts[0]) : 0;
-        const cEnd = typeof ts[1] === 'number' ? Math.min(effectiveDur, ts[1]) : effectiveDur;
-        this._splitChunkIntoReadableCues(cStart, cEnd, ch.text, maxWordsPerCue);
-      }
-    } else if (result?.text && result.text.trim()) {
-      this._splitChunkIntoReadableCues(0.2, effectiveDur, result.text, maxWordsPerCue);
-    }
+    const jobId = ++this._whisperJobId;
 
-    // Fallback: if Whisper timestamp decoder returned 0 cues on audible speech, run VAD-sliced direct Whisper decoding
-    if (this.cues.length === 0) {
-      const segs = this._segmentPCMByEnergy(pcm, 16000, effectiveDur);
-      for (let i = 0; i < segs.length; i++) {
-        const seg = segs[i];
-        const sIdx = Math.max(0, Math.floor(seg.start * 16000));
-        const eIdx = Math.min(pcm.length, Math.ceil(seg.end * 16000));
-        if (eIdx - sIdx < 3200) continue; // < 0.2s
-        const pct = 80 + Math.round(((i + 1) / segs.length) * 16);
-        onProgress?.(`Transcribing speech segment ${i + 1}/${segs.length}…`, pct);
-        const segRes = await transcriber(pcm.subarray(sIdx, eIdx), {
-          return_timestamps: false,
-          ...(!isEnglish && langMap[shortCode] ? { language: langMap[shortCode], task: 'transcribe' } : {})
-        });
-        if (segRes?.text) {
-          this._splitChunkIntoReadableCues(seg.start, seg.end, segRes.text, maxWordsPerCue);
+    if (!this._whisperWorker) {
+      this._whisperWorker = new Worker('./js/whisper-worker.js', { type: 'module' });
+    }
+    const worker = this._whisperWorker;
+
+    return new Promise((resolve, reject) => {
+      this._whisperReject = reject;
+
+      const cleanup = () => {
+        worker.removeEventListener('message', onMsg);
+        worker.removeEventListener('error', onErr);
+        if (this._whisperReject === reject) this._whisperReject = null;
+      };
+
+      const onMsg = (ev) => {
+        const msg = ev.data;
+        if (!msg || msg.jobId !== jobId) return;
+
+        if (msg.type === 'progress') {
+          onProgress?.(msg.message, msg.pct);
+        } else if (msg.type === 'partial') {
+          for (const c of (msg.cues || [])) {
+            this.addCue(c.start, c.end, c.text);
+          }
+          onPartialCues?.(this.cues);
+        } else if (msg.type === 'done') {
+          cleanup();
+          onProgress?.('Formatting & syncing subtitle cues…', 98);
+          resolve(this.cues);
+        } else if (msg.type === 'error') {
+          cleanup();
+          reject(new Error(msg.error || 'Whisper AI worker failed.'));
         }
-      }
-    }
+      };
 
-    return this.cues;
+      const onErr = (err) => {
+        cleanup();
+        this._whisperWorker = null;
+        reject(new Error(err?.message || 'Whisper Web Worker crashed.'));
+      };
+
+      worker.addEventListener('message', onMsg);
+      worker.addEventListener('error', onErr);
+
+      // Transfer PCM buffer zero-copy to the background worker
+      worker.postMessage(
+        {
+          type: 'transcribe',
+          jobId,
+          pcmBuffer: pcm.buffer,
+          duration: effectiveDur,
+          language,
+          maxWordsPerCue
+        },
+        [pcm.buffer]
+      );
+    });
   },
 
   alignScriptToSegments(scriptText, segments) {

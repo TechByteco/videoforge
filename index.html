@@ -1018,9 +1018,12 @@
               <div class="sub-mode-desc">Runs OpenAI Whisper directly in your browser to transcribe real spoken dialogue with timestamps</div>
             </div>
           </div>
-          <button class="btn-sub-gen" style="background:var(--acc);color:#0a0d18;font-weight:700;width:100%;margin-top:8px" onclick="App.runAutoSubtitlesEngine('audio-detect')">
-            ✨ Transcribe Video Audio Now →
-          </button>
+          <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+            <button id="btnStartWhisper" class="btn-sub-gen" style="background:var(--acc);color:#0a0d18;font-weight:700;flex:1" onclick="App.runAutoSubtitlesEngine('audio-detect')">
+              ✨ Transcribe Video Audio Now →
+            </button>
+            <button id="btnCancelWhisper" class="btn-sub-stop" style="display:none" onclick="App.cancelAutoSubtitles()">✕ Cancel</button>
+          </div>
         </div>
 
         <!-- Mode 2: Live Mic Speech-to-Text -->
