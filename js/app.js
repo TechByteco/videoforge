@@ -1195,13 +1195,68 @@ export const App = {
     }, 2800);
   },
 
-  /* ===== THEME TOGGLE ===== */
+  /* ===== 10-THEME STUDIO SYSTEM ===== */
+  themes: [
+    { id: 'dark',      name: 'Obsidian Studio',   desc: 'Deep space + Electric Lime (Default)', bg: '#09090e', acc: '#e8ff47' },
+    { id: 'light',     name: 'Daylight Pro',      desc: 'Crisp studio white + Violet',          bg: '#f0f2f9', acc: '#6b21ff' },
+    { id: 'davinci',   name: 'DaVinci Charcoal',  desc: 'Colorist neutral gray + Amber',        bg: '#141416', acc: '#f59e0b' },
+    { id: 'premiere',  name: 'Premiere Midnight', desc: 'Classic NLE slate + Cobalt Blue',      bg: '#121318', acc: '#3b82f6' },
+    { id: 'finalcut',  name: 'Final Cut Stealth', desc: 'OLED pure black + Cyan',               bg: '#030305', acc: '#06b6d4' },
+    { id: 'nordic',    name: 'Nordic Frost',      desc: 'Arctic slate + Glacier Teal',          bg: '#1a202c', acc: '#38bdf8' },
+    { id: 'cyberpunk', name: 'Cyberpunk Neon',    desc: 'Synthwave void + Neon Magenta',        bg: '#0b0614', acc: '#ff2a85' },
+    { id: 'emerald',   name: 'Emerald Broadcast', desc: 'Control-room dark + Mint',             bg: '#08100e', acc: '#10b981' },
+    { id: 'sepia',     name: 'Warm Sepia Paper',  desc: 'Low-blue-light cream + Terracotta',    bg: '#f4efe6', acc: '#c2410c' },
+    { id: 'rosegold',  name: 'Rose Gold Luxe',    desc: 'Espresso dark + Rose Gold',            bg: '#130e12', acc: '#f472b6' }
+  ],
+
+  renderThemeMenu() {
+    const dd = document.getElementById('themeDropdown');
+    if (!dd) return;
+    const current = document.documentElement.dataset.theme || 'dark';
+    dd.innerHTML = `<div class="theme-dropdown-header">🎨 Studio Themes (10 Presets)</div>` +
+      this.themes.map(t => `
+        <button class="theme-option ${current === t.id ? 'active' : ''}" onclick="App.setTheme('${t.id}')">
+          <div class="theme-swatch" style="background:${t.bg}">
+            <div class="theme-swatch-dot" style="background:${t.acc}"></div>
+          </div>
+          <div class="theme-option-info">
+            <div class="theme-option-name">${t.name}</div>
+            <div class="theme-option-desc">${t.desc}</div>
+          </div>
+        </button>
+      `).join('');
+  },
+
+  toggleThemeMenu(e) {
+    if (e) e.stopPropagation();
+    const dd = document.getElementById('themeDropdown');
+    if (!dd) return;
+    this.renderThemeMenu();
+    dd.classList.toggle('open');
+    if (!this._themeOutsideBound) {
+      this._themeOutsideBound = true;
+      document.addEventListener('click', (ev) => {
+        const wrap = document.getElementById('themePickerWrap');
+        if (wrap && !wrap.contains(ev.target)) {
+          dd.classList.remove('open');
+        }
+      });
+    }
+  },
+
+  setTheme(themeId) {
+    const t = this.themes.find(x => x.id === themeId) || this.themes[0];
+    document.documentElement.dataset.theme = t.id;
+    try { localStorage.setItem('vf_theme', t.id); } catch(e) {}
+    this.renderThemeMenu();
+    const dd = document.getElementById('themeDropdown');
+    if (dd) dd.classList.remove('open');
+    this.toast(`🎨 Theme: ${t.name}`);
+  },
+
   toggleTheme() {
-    const html = document.documentElement;
-    const isLight = html.dataset.theme === 'light';
-    html.dataset.theme = isLight ? 'dark' : 'light';
-    try { localStorage.setItem('vf_theme', html.dataset.theme); } catch(e) {}
-    this.toast(isLight ? '🌙 Dark Mode' : '☀️ Light Mode');
+    const current = document.documentElement.dataset.theme || 'dark';
+    this.setTheme(current === 'light' ? 'dark' : 'light');
   },
 
   restoreTheme() {
